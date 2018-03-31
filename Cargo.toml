@@ -1,0 +1,16 @@
+[package]
+name = "chessjam"
+version = "0.1.0"
+authors = ["Claire Harris <claire.harris.000@gmail.com>"]
+
+[dependencies]
+adequate_math = { path = "../adequate_math" }
+config_struct = "=0.1.0"
+glium = "=0.20.0"
+image = "~0.18.0"
+pleco = "=0.3.11"
+pleco_engine = "=0.1.0"
+serde = "~1.0.36"
+serde_derive = "~1.0.36"
+static_assets = "=0.1.0"
+toml = "~0.4.5"
