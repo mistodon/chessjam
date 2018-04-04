@@ -41,18 +41,18 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     use std::time::Instant;
 
     let mut frame_time = Instant::now();
-    let mut keyboard = KeyboardState::default();
+    let mut keyboard = Keyboard::default();
 
     loop {
         let (dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
 
         // handle_events
-        let mut quitting = false;
+        let mut closed = false;
         {
             use glium::glutin::{ElementState, Event, WindowEvent};
 
-            keyboard.begin_frame();
+            let mut keyboard = keyboard.begin_frame_input();
 
             events_loop.poll_events(|event| match event {
                 Event::WindowEvent { event, .. } => match event {
@@ -68,18 +68,14 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             }
                         }
                     }
-                    WindowEvent::Closed => quitting = true,
+                    WindowEvent::Closed => closed = true,
                     _ => (),
                 },
                 _ => (),
             });
-
-            if keyboard.pressed(Key::Escape) {
-                quitting = true;
-            }
         }
 
-        if quitting {
+        if closed || keyboard.pressed(Key::Escape) {
             return false;
         }
 
@@ -88,7 +84,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             use glium::{Rect, Surface};
 
             let mut frame = display.draw();
-            frame.clear_color_srgb(0.4, 0.0, 0.6, 1.0);
+            frame.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
 
             const TARGET_ASPECT: f32 = 16.0 / 9.0;
             let viewport = {
@@ -106,7 +102,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             frame.clear(
                 Some(&viewport),
-                Some((0.6, 1.0, 0.4, 1.0)),
+                Some((0.3, 0.3, 0.3, 1.0)),
                 true,
                 None,
                 None,
