@@ -1,8 +1,16 @@
 extern crate chessjam;
+
+#[macro_use]
+extern crate static_assets;
+#[macro_use]
 extern crate glium;
 
+extern crate adequate_math;
+
+mod graphics;
 mod input;
 
+use adequate_math::*;
 use glium::Display;
 use glium::glutin::EventsLoop;
 
@@ -40,11 +48,18 @@ fn main() {
 fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     use std::time::Instant;
 
+    let model_shader = graphics::create_shader(
+        display,
+        asset_str!("assets/shaders/model.glsl").as_ref(),
+    );
+
+    let cube_mesh = graphics::create_cube_mesh(display, vec3(1.0, 1.0, 1.0));
+
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
 
     loop {
-        let (dt, now) = chessjam::delta_time(frame_time);
+        let (_dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
 
         // handle_events
@@ -81,7 +96,10 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
         // render
         {
-            use glium::{Rect, Surface};
+            use glium::{
+                BackfaceCullingMode, Depth, DepthTest, DrawParameters, Rect,
+                Surface,
+            };
 
             let mut frame = display.draw();
             frame.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
@@ -104,9 +122,30 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 Some(&viewport),
                 Some((0.3, 0.3, 0.3, 1.0)),
                 true,
-                None,
+                Some(1.0),
                 None,
             );
+
+            let draw_params = DrawParameters {
+                depth: Depth {
+                    test: DepthTest::IfLess,
+                    write: true,
+                    ..Default::default()
+                },
+                backface_culling: BackfaceCullingMode::CullClockwise,
+                viewport: Some(viewport),
+                ..Default::default()
+            };
+
+            frame
+                .draw(
+                    &cube_mesh.vertices,
+                    &cube_mesh.indices,
+                    &model_shader,
+                    &uniform!{},
+                    &draw_params,
+                )
+                .unwrap();
 
             frame.finish().unwrap();
         }
