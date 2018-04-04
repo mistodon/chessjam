@@ -3,7 +3,8 @@ use std::time::Instant;
 pub fn delta_time(previous_time: Instant) -> (f32, Instant) {
     let now = Instant::now();
     let delta = now.duration_since(previous_time);
-    let dt = (delta.as_secs() as f32) + (delta.subsec_nanos() as f32 / 1000000000.0);
+    let dt =
+        (delta.as_secs() as f32) + (delta.subsec_nanos() as f32 / 1000000000.0);
     (dt, now)
 }
 
