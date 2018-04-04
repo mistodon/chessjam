@@ -214,7 +214,7 @@ fn generate_flat_mesh(
     let flat_indices: Vec<u16> = (0..indices.len() as u16).collect();
 
     let mut shadow_indices = flat_indices.clone();
-    for (old_edge, edge_a) in edge_map.iter() {
+    for (old_edge, edge_a) in &edge_map {
         let &(a, b) = old_edge;
         let edge_b = edge_map
             .get(&(b, a))

@@ -1,3 +1,5 @@
+#![allow(unknown_lints)] // TODO(claire): Can go when clippy lints go.
+
 extern crate chessjam;
 
 #[macro_use]
@@ -20,7 +22,7 @@ use input::*;
 fn main() {
     use glium::glutin::{Api, ContextBuilder, GlProfile, GlRequest, WindowBuilder};
 
-    let events_loop = &mut EventsLoop::new();
+    let mut events_loop = EventsLoop::new();
 
     let window = WindowBuilder::new()
         .with_dimensions(1280, 720)
@@ -36,7 +38,7 @@ fn main() {
     let display = &Display::new(window, context, &events_loop).unwrap();
 
     loop {
-        let rerun = run_game(display, events_loop);
+        let rerun = run_game(display, &mut events_loop);
 
         if !rerun {
             break;
@@ -69,6 +71,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             let mut keyboard = keyboard.begin_frame_input();
 
+            #[allow(single_match)]
             events_loop.poll_events(|event| match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::KeyboardInput { input, .. } => {
