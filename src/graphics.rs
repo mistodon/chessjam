@@ -79,11 +79,15 @@ pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
     };
 
     fn parse_shape(object: &Object) -> (Vec<Vertex>, Vec<u16>) {
-        let offsets = object.vertices.iter()
+        let offsets = object
+            .vertices
+            .iter()
             .map(|v| vec3(v.x, v.y, v.z).as_f32())
             .collect::<Vec<Vec3<f32>>>();
 
-        let normals = object.normals.iter()
+        let normals = object
+            .normals
+            .iter()
             .map(|v| vec3(v.x, v.y, v.z).as_f32())
             .collect::<Vec<Vec3<f32>>>();
 
@@ -100,7 +104,7 @@ pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
                             vertices.push(Vertex { offset, normal });
                         }
                     }
-                    _ => unreachable!("Expected only triangles in obj files")
+                    _ => unreachable!("Expected only triangles in obj files"),
                 }
             }
         }
@@ -114,7 +118,9 @@ pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
 
     // TODO(***realname***): Make shadow mesh properly - with degenerate edge quads.
     let (shadow_vertices, shadow_indices) = {
-        let offsets = shadow.vertices.iter()
+        let offsets = shadow
+            .vertices
+            .iter()
             .map(|v| vec3(v.x, v.y, v.z).as_f32())
             .collect::<Vec<Vec3<f32>>>();
 
@@ -128,7 +134,7 @@ pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
                         indices.push(i2.0);
                         indices.push(i1.0);
                     }
-                    _ => unreachable!("Expected only triangles in obj files")
+                    _ => unreachable!("Expected only triangles in obj files"),
                 }
             }
         }
@@ -144,7 +150,8 @@ pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
         vertices: VertexBuffer::new(display, &mesh_vertices).unwrap(),
         indices: IndexBuffer::new(display, TrianglesList, &mesh_indices).unwrap(),
         shadow_vertices: VertexBuffer::new(display, &shadow_vertices).unwrap(),
-        shadow_indices: IndexBuffer::new(display, TrianglesList, &shadow_indices).unwrap(),
+        shadow_indices: IndexBuffer::new(display, TrianglesList, &shadow_indices)
+            .unwrap(),
     }
 }
 

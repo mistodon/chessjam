@@ -1,5 +1,5 @@
+pub use gen_config::{Config, CONFIG};
 use std::borrow::Cow;
-pub use gen_config::{CONFIG, Config};
 
 pub fn load_config() -> Cow<'static, Config> {
     #[cfg(debug_assertions)]
