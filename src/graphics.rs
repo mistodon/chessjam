@@ -113,7 +113,32 @@ pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
     let (mesh_vertices, mesh_indices) = parse_shape(mesh);
 
     // TODO(***realname***): Make shadow mesh properly - with degenerate edge quads.
-    let (shadow_vertices, shadow_indices) = parse_shape(shadow);
+    let (shadow_vertices, shadow_indices) = {
+        let offsets = shadow.vertices.iter()
+            .map(|v| vec3(v.x, v.y, v.z).as_f32())
+            .collect::<Vec<Vec3<f32>>>();
+
+        let mut indices = Vec::new();
+        for geo in &shadow.geometry {
+            for shape in &geo.shapes {
+                match shape.primitive {
+                    // TODO(***realname***): Why is it inside out unless I use this order?
+                    Triangle(i0, i1, i2) => {
+                        indices.push(i0.0);
+                        indices.push(i2.0);
+                        indices.push(i1.0);
+                    }
+                    _ => unreachable!("Expected only triangles in obj files")
+                }
+            }
+        }
+
+        let face_normals = generate_face_normals(&offsets, &indices);
+        let (vertices, _flat_indices, shadow_indices) =
+            generate_flat_mesh(&offsets, &indices, &face_normals);
+
+        (vertices, shadow_indices)
+    };
 
     Mesh {
         vertices: VertexBuffer::new(display, &mesh_vertices).unwrap(),

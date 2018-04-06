@@ -10,7 +10,8 @@ distance = 6.0
 fov = 0.125
 
 [light]
-key_dir = [1.0, -1.5, 2.0, 0.0]
+shadow_brightness = [0.4, 0.4, 0.4, 0.4]
+key_dir = [1.0, -1.5, 1.0, 0.0]
 fill_dir = [-1.0, -0.5, 1.0, 0.0]
 back_dir = [1.0, -1.5, -2.0, 0.0]
 key_color = [0.7, 0.8, 0.9, 1.0]
