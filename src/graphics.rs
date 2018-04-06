@@ -65,6 +65,35 @@ pub fn create_cube_mesh(display: &Display, scale: Vec3<f32>) -> Mesh {
 }
 
 
+pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
+    use wavefront_obj::obj::{self, Primitive::Triangle};
+
+    let obj_set = obj::parse(source.to_owned()).unwrap();
+    let object = &obj_set.objects[0];
+
+    let offsets = object.vertices.iter()
+        .map(|v| vec3(v.x, v.y, v.z).as_f32())
+        .collect::<Vec<Vec3<f32>>>();
+
+    let mut indices = Vec::new();
+    for geometry in &object.geometry {
+        for shape in &geometry.shapes {
+            match shape.primitive {
+                Triangle(i0, i1, i2) => {
+                    // TODO(***realname***): Why is it inside out unless I use this order?
+                    indices.push(i0.0);
+                    indices.push(i2.0);
+                    indices.push(i1.0);
+                },
+                _ => unreachable!("Only expected triangles in obj file."),
+            }
+        }
+    }
+
+    create_mesh_smooth(display, &offsets, &indices)
+}
+
+
 fn create_mesh(
     display: &Display,
     offsets: &[Vec3<f32>],
@@ -216,6 +245,11 @@ fn generate_flat_mesh(
     let mut shadow_indices = flat_indices.clone();
     for (old_edge, edge_a) in &edge_map {
         let &(a, b) = old_edge;
+
+        // TODO(***realname***): We require a closed mesh here, which precludes having
+        // sharp edges by splitting the mesh. A simple solution would be to fuse
+        // the mesh pieces for shadow generation, but that may be too much online
+        // work.
         let edge_b = edge_map
             .get(&(b, a))
             .expect("Mesh isn't closed - found an open edge");
