@@ -63,7 +63,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         asset_str!("assets/shaders/shadow.glsl").as_ref(),
     );
 
-    let cube_mesh = graphics::create_cube_mesh(display, vec3(1.0, 1.0, 1.0));
+    let cube_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/tile.obj").as_ref(),
+    );
+
     let pawn_mesh = graphics::create_obj_mesh(
         display,
         asset_str!("assets/meshes/pawn.obj").as_ref(),
@@ -71,6 +75,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
+    let mut mouse = vec2(0.5, 0.5);
 
 
     const TARGET_ASPECT: f32 = 16.0 / 9.0;
@@ -167,6 +172,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             }
                         }
                     }
+                    WindowEvent::CursorMoved { position, .. } => {
+                        let (w, h) = display.get_framebuffer_dimensions();
+                        let (x, y) = position;
+                        mouse = vec2(x, y).as_f32() / vec2(w, h).as_f32();
+                    }
                     WindowEvent::Closed => closed = true,
                     _ => (),
                 },
@@ -179,6 +189,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         }
         if keyboard.pressed(Key::R) && keyboard.modifiers.logo {
             return true;
+        }
+
+        // Update
+        {
+            println!("{:?}", mouse);
         }
 
         // render
@@ -200,7 +215,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             // Add some chessboard squares
             for y in 0..8 {
                 for x in 0..8 {
-                    let position = vec3(-3.5, -0.5, -3.5) + vec3(x, 0, y).as_f32();
+                    let position = vec3(-3.5, 0.0, -3.5) + vec3(x, 0, y).as_f32();
                     let color = match (x + y) % 2 {
                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
