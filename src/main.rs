@@ -50,6 +50,8 @@ fn main() {
 fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     use std::time::Instant;
 
+    let config = chessjam::config::load_config();
+
     let model_shader = graphics::create_shader(
         display,
         asset_str!("assets/shaders/model.glsl").as_ref(),
@@ -64,13 +66,13 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     const TARGET_ASPECT: f32 = 16.0 / 9.0;
     let projection_matrix = matrix::perspective_projection(
         TARGET_ASPECT,
-        consts::TAU32 / 4.0,
+        consts::TAU32 * config.camera.fov as f32,
         0.1,
         100.0,
     );
 
     let view_matrix = {
-        let position = vec3(0.0, 8.0, -6.0);
+        let position = vec3(0.0, config.camera.height, -config.camera.distance).as_f32();
         let focus = vec3(0.0, 0.0, 0.0);
         let direction = focus - position;
         let orientation = matrix::look_rotation(direction, vec3(0.0, 1.0, 0.0));
@@ -116,6 +118,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         if closed || keyboard.pressed(Key::Escape) {
             return false;
         }
+        if keyboard.pressed(Key::R) && keyboard.modifiers.logo {
+            return true;
+        }
 
         // render
         {
@@ -136,8 +141,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 for x in 0..8 {
                     let position = vec3(-3.5, -0.5, -3.5) + vec3(x, 0, y).as_f32();
                     let color = match (x + y) % 2 {
-                        0 => vec4(0.0, 0.0, 0.0, 1.0),
-                        _ => vec4(1.0, 1.0, 1.0, 1.0),
+                        0 => Vec4::from_slice(&config.colors.black).as_f32(),
+                        _ => Vec4::from_slice(&config.colors.white).as_f32(),
                     };
                     render_buffer.push(RenderCommand {
                         position,

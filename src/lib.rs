@@ -1,5 +1,14 @@
 #![allow(unknown_lints)] // TODO(claire): Can go when clippy lints go.
 
+#[macro_use]
+extern crate serde_derive;
+
+#[cfg(debug_assertions)]
+extern crate toml;
+
+pub mod config;
+mod gen_config;
+
 use std::time::Instant;
 
 pub fn delta_time(previous_time: Instant) -> (f32, Instant) {
