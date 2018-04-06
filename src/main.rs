@@ -82,6 +82,21 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
     let view_projection_matrix = projection_matrix * view_matrix;
 
+        let light_direction_matrix: Mat4<f32> = {
+            let key = Vec4::from_slice(&config.light.key_dir).norm().as_f32();
+            let fill = Vec4::from_slice(&config.light.fill_dir).norm().as_f32();
+            let back = Vec4::from_slice(&config.light.back_dir).norm().as_f32();
+
+            Mat4([key.0, fill.0, back.0, [0.0, 0.0, 0.0, 1.0]]).transpose()
+        };
+
+        let light_color_matrix: Mat4<f32> = Mat4([
+            Vec4::from_slice(&config.light.key_color).as_f32().0,
+            Vec4::from_slice(&config.light.fill_color).as_f32().0,
+            Vec4::from_slice(&config.light.back_color).as_f32().0,
+            Vec4::from_slice(&config.light.amb_color).as_f32().0,
+        ]);
+
     loop {
         let (_dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
@@ -190,6 +205,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             for command in &render_buffer {
                 let model_matrix = Mat4::translation(command.position);
+                let normal_matrix = Mat3::<f32>::identity();
                 let mvp_matrix = view_projection_matrix * model_matrix;
 
                 frame
@@ -199,7 +215,10 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         &model_shader,
                         &uniform!{
                             transform: mvp_matrix.0,
-                            tint: command.color.0,
+                            normal_matrix: normal_matrix.0,
+                            light_direction_matrix: light_direction_matrix.0,
+                            light_color_matrix: light_color_matrix.0,
+                            albedo: command.color.0,
                         },
                         &draw_params,
                     )
