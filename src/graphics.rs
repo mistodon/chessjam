@@ -11,7 +11,7 @@ pub struct Vertex {
     offset: [f32; 3],
     normal: [f32; 3],
 }
-implement_vertex!(Vertex, offset);
+implement_vertex!(Vertex, offset, normal);
 
 
 pub struct Mesh {
