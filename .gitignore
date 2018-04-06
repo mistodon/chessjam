@@ -1,3 +1,4 @@
 src/gen_config.rs
+assets/meshes/
 /target
 **/*.rs.bk
