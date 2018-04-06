@@ -105,6 +105,13 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         Vec4::from_slice(&config.light.amb_color).as_f32().0,
     ]);
 
+    let shadow_color_matrix: Mat4<f32> = Mat4([
+        Vec4::from_slice(&config.shadow.key_color).as_f32().0,
+        Vec4::from_slice(&config.shadow.fill_color).as_f32().0,
+        Vec4::from_slice(&config.shadow.back_color).as_f32().0,
+        Vec4::from_slice(&config.shadow.amb_color).as_f32().0,
+    ]);
+
     loop {
         let (_dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
@@ -235,7 +242,6 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 let model_matrix = Mat4::translation(command.position);
                 let normal_matrix = Mat3::<f32>::identity();
                 let mvp_matrix = view_projection_matrix * model_matrix;
-                let light_colors = Mat4::scale(Vec4::from_slice(&config.light.shadow_brightness).as_f32()) * light_color_matrix;
 
                 frame
                     .draw(
@@ -246,7 +252,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             transform: mvp_matrix.0,
                             normal_matrix: normal_matrix.0,
                             light_direction_matrix: light_direction_matrix.0,
-                            light_color_matrix: light_colors.0,
+                            light_color_matrix: shadow_color_matrix.0,
                             albedo: command.color.0,
                         },
                         &draw_params,
