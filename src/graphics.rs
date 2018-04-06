@@ -17,6 +17,7 @@ implement_vertex!(Vertex, offset, normal);
 pub struct Mesh {
     pub vertices: VertexBuffer<Vertex>,
     pub indices: IndexBuffer<u16>,
+    pub shadow_vertices: VertexBuffer<Vertex>,
     pub shadow_indices: IndexBuffer<u16>,
 }
 
@@ -66,31 +67,60 @@ pub fn create_cube_mesh(display: &Display, scale: Vec3<f32>) -> Mesh {
 
 
 pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
-    use wavefront_obj::obj::{self, Primitive::Triangle};
+    use glium::index::PrimitiveType::TrianglesList;
+    use wavefront_obj::obj::{self, Object, Primitive::Triangle};
 
     let obj_set = obj::parse(source.to_owned()).unwrap();
-    let object = &obj_set.objects[0];
+    let (mesh, shadow) = if obj_set.objects[0].name.starts_with("Shadow") {
+        (&obj_set.objects[1], &obj_set.objects[0])
+    }
+    else {
+        (&obj_set.objects[0], &obj_set.objects[1])
+    };
 
-    let offsets = object.vertices.iter()
-        .map(|v| vec3(v.x, v.y, v.z).as_f32())
-        .collect::<Vec<Vec3<f32>>>();
+    fn parse_shape(object: &Object) -> (Vec<Vertex>, Vec<u16>) {
+        let offsets = object.vertices.iter()
+            .map(|v| vec3(v.x, v.y, v.z).as_f32())
+            .collect::<Vec<Vec3<f32>>>();
 
-    let mut indices = Vec::new();
-    for geometry in &object.geometry {
-        for shape in &geometry.shapes {
-            match shape.primitive {
-                Triangle(i0, i1, i2) => {
+        let normals = object.normals.iter()
+            .map(|v| vec3(v.x, v.y, v.z).as_f32())
+            .collect::<Vec<Vec3<f32>>>();
+
+        let mut vertices = Vec::new();
+
+        for geo in &object.geometry {
+            for shape in &geo.shapes {
+                match shape.primitive {
                     // TODO(claire): Why is it inside out unless I use this order?
-                    indices.push(i0.0);
-                    indices.push(i2.0);
-                    indices.push(i1.0);
-                },
-                _ => unreachable!("Only expected triangles in obj file."),
+                    Triangle(i0, i1, i2) => {
+                        for v in &[i0, i2, i1] {
+                            let offset = offsets[v.0].0;
+                            let normal = normals[v.2.unwrap()].0;
+                            vertices.push(Vertex { offset, normal });
+                        }
+                    }
+                    _ => unreachable!("Expected only triangles in obj files")
+                }
             }
         }
+
+        // TODO(claire): Re-use identical vertices
+        let indices = (0..vertices.len() as u16).collect::<Vec<_>>();
+        (vertices, indices)
     }
 
-    create_mesh_smooth(display, &offsets, &indices)
+    let (mesh_vertices, mesh_indices) = parse_shape(mesh);
+
+    // TODO(claire): Make shadow mesh properly - with degenerate edge quads.
+    let (shadow_vertices, shadow_indices) = parse_shape(shadow);
+
+    Mesh {
+        vertices: VertexBuffer::new(display, &mesh_vertices).unwrap(),
+        indices: IndexBuffer::new(display, TrianglesList, &mesh_indices).unwrap(),
+        shadow_vertices: VertexBuffer::new(display, &shadow_vertices).unwrap(),
+        shadow_indices: IndexBuffer::new(display, TrianglesList, &shadow_indices).unwrap(),
+    }
 }
 
 
@@ -120,6 +150,7 @@ fn create_mesh(
     Mesh {
         vertices: vertex_buffer,
         indices: index_buffer,
+        shadow_vertices: VertexBuffer::new(display, &vertices).unwrap(),
         shadow_indices: shadow_index_buffer,
     }
 }
@@ -169,6 +200,7 @@ fn create_mesh_smooth(
     Mesh {
         vertices: vertex_buffer,
         indices: index_buffer,
+        shadow_vertices: VertexBuffer::new(display, &vertices).unwrap(),
         shadow_indices: shadow_index_buffer,
     }
 }

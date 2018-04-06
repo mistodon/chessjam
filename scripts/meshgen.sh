@@ -8,5 +8,5 @@ readonly sourcepath=$(cd "source_assets/meshes" && pwd)
 readonly destpath=$(cd "assets/meshes" && pwd)
 
 for meshfile in $(ls "source_assets/meshes"); do
-    echo "import bpy;bpy.ops.export_scene.obj(filepath=\"${destpath}/${meshfile%.blend}.obj\", use_materials=False, use_triangles=True)" | /Applications/Blender/blender.app/Contents/MacOS/blender "$sourcepath/$meshfile" -b --python-console
+    cat scripts/python_mesh_export.py | sed "s;OUTPUTPATH;${destpath}/${meshfile%.blend}.obj;" | /Applications/Blender/blender.app/Contents/MacOS/blender "$sourcepath/$meshfile" -b --python-console
 done
