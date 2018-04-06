@@ -8,6 +8,7 @@ extern crate static_assets;
 extern crate glium;
 
 extern crate adequate_math;
+extern crate wavefront_obj;
 
 mod graphics;
 mod input;
@@ -58,6 +59,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     );
 
     let cube_mesh = graphics::create_cube_mesh(display, vec3(1.0, 1.0, 1.0));
+    let pawn_mesh = graphics::create_obj_mesh(display, asset_str!("assets/meshes/pawn.obj").as_ref());
 
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
@@ -152,6 +154,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             }
 
             let mut render_buffer = Vec::with_capacity(100);
+
+            // Add some chessboard squares
             for y in 0..8 {
                 for x in 0..8 {
                     let position = vec3(-3.5, -0.5, -3.5) + vec3(x, 0, y).as_f32();
@@ -165,6 +169,21 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         color,
                     });
                 }
+            }
+
+            // Add some chess pieces
+            for i in 0..8 {
+                let x = -3.5 + i as f32;
+                render_buffer.push(RenderCommand {
+                    position: vec3(x, 0.0, -2.5),
+                    mesh: &pawn_mesh,
+                    color: Vec4::from_slice(&config.colors.white).as_f32(),
+                });
+                render_buffer.push(RenderCommand {
+                    position: vec3(x, 0.0, 2.5),
+                    mesh: &pawn_mesh,
+                    color: Vec4::from_slice(&config.colors.grey).as_f32(),
+                });
             }
 
             let mut frame = display.draw();
@@ -183,9 +202,10 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 }
             };
 
+            let clear_color = Vec4::from_slice(&config.colors.sky).as_f32().as_tuple();
             frame.clear(
                 Some(&viewport),
-                Some((0.3, 0.3, 0.3, 1.0)),
+                Some(clear_color),
                 true,
                 Some(1.0),
                 None,
