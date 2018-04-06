@@ -4,7 +4,6 @@ version = "0.1.0"
 authors = ["***Realname*** ***Lastname*** <***redacted.email@redacted.nope***>"]
 
 [dependencies]
-config_struct = "=0.1.0"
 glium = "=0.19.0"
 image = "=0.18.0"
 pleco = "=0.3.11"
@@ -18,3 +17,7 @@ path = "../adequate_math"
 
 [dependencies.pleco_engine]
 path = "../Pleco/pleco_engine"
+
+[build-dependencies.config_struct]
+version = "=0.1.0"
+features = ["toml-parsing"]
