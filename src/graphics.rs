@@ -1,6 +1,3 @@
-#![allow(dead_code)] // TODO(***realname***): Remove
-
-use glium::index::PrimitiveType;
 use glium::{Display, IndexBuffer, Program, VertexBuffer};
 
 use adequate_math::*;
@@ -42,27 +39,6 @@ pub fn create_shader(display: &Display, shader_source: &str) -> Program {
             uses_point_size: false,
         },
     ).unwrap()
-}
-
-
-pub fn create_cube_mesh(display: &Display, scale: Vec3<f32>) -> Mesh {
-    let offsets = [
-        vec3(-0.5, 0.5, -0.5) * scale,
-        vec3(-0.5, -0.5, -0.5) * scale,
-        vec3(0.5, 0.5, -0.5) * scale,
-        vec3(0.5, -0.5, -0.5) * scale,
-        vec3(-0.5, 0.5, 0.5) * scale,
-        vec3(-0.5, -0.5, 0.5) * scale,
-        vec3(0.5, 0.5, 0.5) * scale,
-        vec3(0.5, -0.5, 0.5) * scale,
-    ];
-
-    let indices = [
-        0, 1, 2, 1, 3, 2, 6, 7, 4, 7, 5, 4, 4, 0, 6, 6, 0, 2, 4, 5, 0, 5, 1, 0, 2,
-        3, 6, 3, 7, 6, 1, 5, 3, 5, 7, 3,
-    ];
-
-    create_mesh(display, &offsets, &indices)
 }
 
 
@@ -156,88 +132,6 @@ pub fn create_obj_mesh(display: &Display, source: &str) -> Mesh {
 }
 
 
-fn create_mesh(
-    display: &Display,
-    offsets: &[Vec3<f32>],
-    indices: &[usize],
-) -> Mesh {
-    let face_normals = generate_face_normals(offsets, indices);
-
-    let (vertices, flat_indices, shadow_indices) =
-        generate_flat_mesh(offsets, indices, &face_normals);
-
-    let vertex_buffer = VertexBuffer::new(display, &vertices).unwrap();
-    let index_buffer = IndexBuffer::new(
-        display,
-        PrimitiveType::TrianglesList,
-        &flat_indices,
-    ).unwrap();
-    let shadow_index_buffer = IndexBuffer::new(
-        display,
-        PrimitiveType::TrianglesList,
-        &shadow_indices,
-    ).unwrap();
-
-
-    Mesh {
-        vertices: vertex_buffer,
-        indices: index_buffer,
-        shadow_vertices: VertexBuffer::new(display, &vertices).unwrap(),
-        shadow_indices: shadow_index_buffer,
-    }
-}
-
-
-fn create_mesh_smooth(
-    display: &Display,
-    offsets: &[Vec3<f32>],
-    indices: &[usize],
-) -> Mesh {
-    let face_normals = generate_face_normals(offsets, indices);
-    let vertex_normals = generate_vertex_normals(offsets, indices, &face_normals);
-
-    let mut vertices = Vec::with_capacity(offsets.len());
-    for (offset, normal) in offsets.iter().zip(vertex_normals.iter()) {
-        vertices.push(Vertex {
-            offset: offset.0,
-            normal: normal.0,
-        });
-    }
-
-    let (mut flat_vertices, _flat_indices, shadow_indices) =
-        generate_flat_mesh(offsets, indices, &face_normals);
-
-    let smooth_indices: Vec<u16> = indices.iter().map(|&x| x as u16).collect();
-    let smooth_count = offsets.len() as u16;
-
-    vertices.append(&mut flat_vertices);
-    let shadow_indices: Vec<u16> = shadow_indices
-        .iter()
-        .map(|&x| x + smooth_count)
-        .collect();
-
-    let vertex_buffer = VertexBuffer::new(display, &vertices).unwrap();
-    let index_buffer = IndexBuffer::new(
-        display,
-        PrimitiveType::TrianglesList,
-        &smooth_indices,
-    ).unwrap();
-    let shadow_index_buffer = IndexBuffer::new(
-        display,
-        PrimitiveType::TrianglesList,
-        &shadow_indices,
-    ).unwrap();
-
-
-    Mesh {
-        vertices: vertex_buffer,
-        indices: index_buffer,
-        shadow_vertices: VertexBuffer::new(display, &vertices).unwrap(),
-        shadow_indices: shadow_index_buffer,
-    }
-}
-
-
 fn generate_face_normals(
     offsets: &[Vec3<f32>],
     indices: &[usize],
@@ -253,26 +147,6 @@ fn generate_face_normals(
         face_normals.push(n);
     }
     face_normals
-}
-
-
-fn generate_vertex_normals(
-    offsets: &[Vec3<f32>],
-    indices: &[usize],
-    face_normals: &[Vec3<f32>],
-) -> Vec<Vec3<f32>> {
-    let mut vertex_normals = vec![vec3(0.0, 0.0, 0.0); offsets.len()];
-    for (triangle_index, triangle) in indices.chunks(3).enumerate() {
-        for &index in triangle {
-            vertex_normals[index] += face_normals[triangle_index];
-        }
-    }
-
-    for normal in &mut vertex_normals {
-        *normal = normal.norm();
-    }
-
-    vertex_normals
 }
 
 
