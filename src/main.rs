@@ -58,6 +58,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         asset_str!("assets/shaders/model.glsl").as_ref(),
     );
 
+    let shadow_shader = graphics::create_shader(
+        display,
+        asset_str!("assets/shaders/shadow.glsl").as_ref(),
+    );
+
     let cube_mesh = graphics::create_cube_mesh(display, vec3(1.0, 1.0, 1.0));
     let pawn_mesh = graphics::create_obj_mesh(display, asset_str!("assets/meshes/pawn.obj").as_ref());
 
@@ -84,20 +89,21 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
     let view_projection_matrix = projection_matrix * view_matrix;
 
-        let light_direction_matrix: Mat4<f32> = {
-            let key = Vec4::from_slice(&config.light.key_dir).norm().as_f32();
-            let fill = Vec4::from_slice(&config.light.fill_dir).norm().as_f32();
-            let back = Vec4::from_slice(&config.light.back_dir).norm().as_f32();
+    let shadow_direction = Vec4::from_slice(&config.light.key_dir).norm().as_f32();
+    let light_direction_matrix: Mat4<f32> = {
+        let key = shadow_direction;
+        let fill = Vec4::from_slice(&config.light.fill_dir).norm().as_f32();
+        let back = Vec4::from_slice(&config.light.back_dir).norm().as_f32();
 
-            Mat4([key.0, fill.0, back.0, [0.0, 0.0, 0.0, 1.0]]).transpose()
-        };
+        Mat4([key.0, fill.0, back.0, [0.0, 0.0, 0.0, 1.0]]).transpose()
+    };
 
-        let light_color_matrix: Mat4<f32> = Mat4([
-            Vec4::from_slice(&config.light.key_color).as_f32().0,
-            Vec4::from_slice(&config.light.fill_color).as_f32().0,
-            Vec4::from_slice(&config.light.back_color).as_f32().0,
-            Vec4::from_slice(&config.light.amb_color).as_f32().0,
-        ]);
+    let light_color_matrix: Mat4<f32> = Mat4([
+        Vec4::from_slice(&config.light.key_color).as_f32().0,
+        Vec4::from_slice(&config.light.fill_color).as_f32().0,
+        Vec4::from_slice(&config.light.back_color).as_f32().0,
+        Vec4::from_slice(&config.light.amb_color).as_f32().0,
+    ]);
 
     loop {
         let (_dt, now) = chessjam::delta_time(frame_time);
@@ -144,6 +150,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             use glium::{
                 BackfaceCullingMode, Depth, DepthTest, DrawParameters, Rect,
                 Surface,
+                draw_parameters::{Stencil, StencilOperation, StencilTest}
             };
             use graphics::Mesh;
 
@@ -187,7 +194,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             }
 
             let mut frame = display.draw();
-            frame.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
+            frame.clear_all_srgb((0.0, 0.0, 0.0, 1.0), 1.0, 0);
 
             let viewport = {
                 let (left, bottom, width, height) = chessjam::viewport_rect(
@@ -207,7 +214,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 Some(&viewport),
                 Some(clear_color),
                 true,
-                Some(1.0),
+                None,
                 None,
             );
 
@@ -223,10 +230,132 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             };
 
 
+            // Render all objects as if in shadow
             for command in &render_buffer {
                 let model_matrix = Mat4::translation(command.position);
                 let normal_matrix = Mat3::<f32>::identity();
                 let mvp_matrix = view_projection_matrix * model_matrix;
+                let light_colors = Mat4::scale(Vec4::from_slice(&config.light.shadow_brightness).as_f32()) * light_color_matrix;
+
+                frame
+                    .draw(
+                        &command.mesh.vertices,
+                        &command.mesh.indices,
+                        &model_shader,
+                        &uniform!{
+                            transform: mvp_matrix.0,
+                            normal_matrix: normal_matrix.0,
+                            light_direction_matrix: light_direction_matrix.0,
+                            light_color_matrix: light_colors.0,
+                            albedo: command.color.0,
+                        },
+                        &draw_params,
+                    )
+                    .unwrap();
+            }
+
+            // Render shadow front faces
+            for command in &render_buffer {
+                let model_matrix = Mat4::translation(command.position);
+                let mvp_matrix = view_projection_matrix * model_matrix;
+                let model_space_shadow_direction = shadow_direction.retract();
+
+                let shadow_front_draw_params = DrawParameters
+                {
+                    depth: Depth
+                    {
+                        test: DepthTest::IfLess,
+                        write: false,
+                        .. Default::default()
+                    },
+                    color_mask: (false, false, false, false),
+                    stencil: Stencil
+                    {
+                        depth_pass_operation_clockwise: StencilOperation::Increment,
+                        .. Default::default()
+                    },
+                    backface_culling: BackfaceCullingMode::CullCounterClockwise,
+                    viewport: Some(viewport),
+                    .. Default::default()
+                };
+
+                frame
+                    .draw(
+                        &command.mesh.shadow_vertices,
+                        &command.mesh.shadow_indices,
+                        &shadow_shader,
+                        &uniform!{
+                            transform: mvp_matrix.0,
+                            model_space_shadow_direction: model_space_shadow_direction.0,
+                        },
+                        &shadow_front_draw_params,
+                    )
+                    .unwrap();
+            }
+
+            // Render shadow back faces
+            for command in &render_buffer {
+                let model_matrix = Mat4::translation(command.position);
+                let mvp_matrix = view_projection_matrix * model_matrix;
+                let model_space_shadow_direction = shadow_direction.retract();
+
+                let shadow_back_draw_params = DrawParameters
+                {
+                    depth: Depth
+                    {
+                        test: DepthTest::IfLess,
+                        write: false,
+                        .. Default::default()
+                    },
+                    color_mask: (false, false, false, false),
+                    stencil: Stencil
+                    {
+                        depth_pass_operation_counter_clockwise: StencilOperation::Decrement,
+                        .. Default::default()
+                    },
+                    backface_culling: BackfaceCullingMode::CullClockwise,
+                    viewport: Some(viewport),
+                    .. Default::default()
+                };
+
+                frame
+                    .draw(
+                        &command.mesh.shadow_vertices,
+                        &command.mesh.shadow_indices,
+                        &shadow_shader,
+                        &uniform!{
+                            transform: mvp_matrix.0,
+                            model_space_shadow_direction: model_space_shadow_direction.0,
+                        },
+                        &shadow_back_draw_params,
+                    )
+                    .unwrap();
+            }
+
+            // Render objects fully lit outside shadow volumes
+            for command in &render_buffer {
+                let model_matrix = Mat4::translation(command.position);
+                let normal_matrix = Mat3::<f32>::identity();
+                let mvp_matrix = view_projection_matrix * model_matrix;
+
+                let fully_lit_draw_params = DrawParameters
+                {
+                    depth: Depth
+                    {
+                        test: DepthTest::IfLessOrEqual,
+                        write: false,
+                        .. Default::default()
+                    },
+                    stencil: Stencil
+                    {
+                        test_counter_clockwise: StencilTest::IfEqual { mask: !0 },
+                        reference_value_counter_clockwise: 0,
+                        .. Default::default()
+                    },
+                    backface_culling: BackfaceCullingMode::CullClockwise,
+                    viewport: Some(viewport),
+                    .. Default::default()
+                };
 
                 frame
                     .draw(
@@ -240,7 +369,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             light_color_matrix: light_color_matrix.0,
                             albedo: command.color.0,
                         },
-                        &draw_params,
+                        &fully_lit_draw_params,
                     )
                     .unwrap();
             }
