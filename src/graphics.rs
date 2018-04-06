@@ -34,7 +34,7 @@ pub fn create_shader(display: &Display, shader_source: &str) -> Program {
         ProgramCreationInput::SourceCode {
             vertex_shader: vertex_source,
             fragment_shader: fragment_source,
-            outputs_srgb: true,
+            outputs_srgb: false,
             geometry_shader: None,
             tessellation_control_shader: None,
             tessellation_evaluation_shader: None,
