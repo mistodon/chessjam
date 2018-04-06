@@ -60,6 +60,26 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
 
+
+    const TARGET_ASPECT: f32 = 16.0 / 9.0;
+    let projection_matrix = matrix::perspective_projection(
+        TARGET_ASPECT,
+        consts::TAU32 / 4.0,
+        0.1,
+        100.0,
+    );
+
+    let view_matrix = {
+        let position = vec3(0.0, 8.0, -6.0);
+        let focus = vec3(0.0, 0.0, 0.0);
+        let direction = focus - position;
+        let orientation = matrix::look_rotation(direction, vec3(0.0, 1.0, 0.0));
+        let translation = Mat4::translation(-position);
+        orientation.transpose() * translation
+    };
+
+    let view_projection_matrix = projection_matrix * view_matrix;
+
     loop {
         let (_dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
@@ -103,11 +123,33 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 BackfaceCullingMode, Depth, DepthTest, DrawParameters, Rect,
                 Surface,
             };
+            use graphics::Mesh;
+
+            struct RenderCommand<'a> {
+                position: Vec3<f32>,
+                mesh: &'a Mesh,
+                color: Vec4<f32>,
+            }
+
+            let mut render_buffer = Vec::with_capacity(100);
+            for y in 0..8 {
+                for x in 0..8 {
+                    let position = vec3(-3.5, -0.5, -3.5) + vec3(x, 0, y).as_f32();
+                    let color = match (x + y) % 2 {
+                        0 => vec4(0.0, 0.0, 0.0, 1.0),
+                        _ => vec4(1.0, 1.0, 1.0, 1.0),
+                    };
+                    render_buffer.push(RenderCommand {
+                        position,
+                        mesh: &cube_mesh,
+                        color,
+                    });
+                }
+            }
 
             let mut frame = display.draw();
             frame.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
 
-            const TARGET_ASPECT: f32 = 16.0 / 9.0;
             let viewport = {
                 let (left, bottom, width, height) = chessjam::viewport_rect(
                     display.get_framebuffer_dimensions(),
@@ -140,15 +182,24 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 ..Default::default()
             };
 
-            frame
-                .draw(
-                    &cube_mesh.vertices,
-                    &cube_mesh.indices,
-                    &model_shader,
-                    &uniform!{},
-                    &draw_params,
-                )
-                .unwrap();
+
+            for command in &render_buffer {
+                let model_matrix = Mat4::translation(command.position);
+                let mvp_matrix = view_projection_matrix * model_matrix;
+
+                frame
+                    .draw(
+                        &command.mesh.vertices,
+                        &command.mesh.indices,
+                        &model_shader,
+                        &uniform!{
+                            transform: mvp_matrix.0,
+                            tint: command.color.0,
+                        },
+                        &draw_params,
+                    )
+                    .unwrap();
+            }
 
             frame.finish().unwrap();
         }
