@@ -8,6 +8,7 @@ extern crate static_assets;
 extern crate glium;
 
 extern crate adequate_math;
+extern crate pleco;
 extern crate wavefront_obj;
 
 mod graphics;
@@ -27,15 +28,16 @@ pub struct Piece {
     pub piece_type: PieceType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum ChessColor {
     Black,
     White,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum PieceType {
     Pawn,
+    King,
 }
 
 
@@ -67,6 +69,7 @@ fn main() {
 }
 
 
+#[allow(cyclomatic_complexity)]
 fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     use std::time::Instant;
 
@@ -90,6 +93,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let pawn_mesh = graphics::create_obj_mesh(
         display,
         asset_str!("assets/meshes/pawn.obj").as_ref(),
+    );
+
+    let king_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/king.obj").as_ref(),
     );
 
     let mut frame_time = Instant::now();
@@ -116,7 +124,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let camera_direction = camera_focus - camera_position;
 
     let view_matrix = {
-        let orientation = matrix::look_rotation(camera_direction, vec3(0.0, 1.0, 0.0));
+        let orientation =
+            matrix::look_rotation(camera_direction, vec3(0.0, 1.0, 0.0));
         let translation = Mat4::translation(-camera_position);
         orientation.transpose() * translation
     };
@@ -182,9 +191,21 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 piece_type: PieceType::Pawn,
             });
         }
+        pieces.push(Piece {
+            position: vec2(4, 0),
+            color: ChessColor::White,
+            piece_type: PieceType::King,
+        });
+        pieces.push(Piece {
+            position: vec2(4, 7),
+            color: ChessColor::Black,
+            piece_type: PieceType::King,
+        });
         pieces
     };
     let mut selected_piece_index: Option<usize> = None;
+    let mut valid_destinations: Vec<Vec2<i32>> = vec![];
+    let mut whos_turn = ChessColor::White;
 
     loop {
         let (_dt, now) = chessjam::delta_time(frame_time);
@@ -213,7 +234,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             }
                         }
                     }
-                    WindowEvent::MouseInput { state, button, .. } => {
+                    WindowEvent::MouseInput {
+                        state, button, ..
+                    } => {
                         let pressed = state == ElementState::Pressed;
                         if pressed {
                             mouse.press(button);
@@ -247,8 +270,10 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             let (w, h) = display.get_framebuffer_dimensions();
             let mouse_pos = (Vec2(mouse.position()) / vec2(w, h).as_f64()).as_f32();
-            let (mx, my) = ((mouse_pos - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
-            let near_plane_half_height = (camera_fov / 2.0).tan() * CAMERA_NEAR_PLANE;
+            let (mx, my) =
+                ((mouse_pos - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
+            let near_plane_half_height =
+                (camera_fov / 2.0).tan() * CAMERA_NEAR_PLANE;
             let near_plane_half_width = near_plane_half_height * TARGET_ASPECT;
 
             let mouse_ray = {
@@ -282,8 +307,92 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     }
                     Some(index) => {
                         if piece_at(tile_cursor, &pieces).is_none() {
-                            pieces[index].position = tile_cursor;
+                            if valid_destinations.contains(&tile_cursor) {
+                                pieces[index].position = tile_cursor;
+                                whos_turn = match whos_turn {
+                                    ChessColor::White => ChessColor::Black,
+                                    ChessColor::Black => ChessColor::White,
+                                }
+                            }
                             selected_piece_index = None;
+                        }
+                    }
+                }
+
+                // Recalculate possible moves
+                valid_destinations.clear();
+                if let Some(index) = selected_piece_index {
+                    use pleco::Board;
+
+                    let piece = &pieces[index];
+                    let (px, py) = piece.position.as_tuple();
+                    let piece_pos_u8 = (py * 8 + px) as u8;
+
+                    // First generate FEN
+                    let fen = {
+                        use std::fmt::Write;
+
+                        let mut buffer = String::with_capacity(128);
+                        let mut empty_stretch = 0;
+
+                        for y in 0..8 {
+                            for x in 0..8 {
+                                match piece_at(vec2(x, 7 - y).as_i32(), &pieces) {
+                                    Some(index) => {
+                                        use ChessColor::*;
+                                        use PieceType::*;
+
+                                        if empty_stretch > 0 {
+                                            write!(buffer, "{}", empty_stretch)
+                                                .unwrap();
+                                            empty_stretch = 0;
+                                        }
+
+                                        let piece = &pieces[index];
+                                        let ch =
+                                            match (piece.color, piece.piece_type) {
+                                                (White, Pawn) => "P",
+                                                (White, King) => "K",
+                                                (Black, Pawn) => "p",
+                                                (Black, King) => "k",
+                                            };
+                                        buffer.push_str(ch);
+                                    }
+                                    None => {
+                                        empty_stretch += 1;
+                                    }
+                                }
+                            }
+
+                            if empty_stretch > 0 {
+                                write!(buffer, "{}", empty_stretch).unwrap();
+                                empty_stretch = 0;
+                            }
+
+                            if y < 7 {
+                                buffer.push_str("/");
+                            }
+                        }
+
+                        match whos_turn {
+                            ChessColor::White => buffer.push_str(" w "),
+                            ChessColor::Black => buffer.push_str(" b "),
+                        }
+
+                        buffer.push_str("KQkq - 0 1");
+
+                        buffer
+                    };
+
+                    let board = Board::from_fen(&fen).unwrap();
+                    let moves = board.generate_moves();
+
+                    for chessmove in moves.iter() {
+                        let from_u8 = chessmove.get_src_u8();
+                        let to_u8 = chessmove.get_dest_u8();
+                        let dest = vec2(to_u8 % 8, to_u8 / 8).as_i32();
+                        if from_u8 == piece_pos_u8 {
+                            valid_destinations.push(dest);
                         }
                     }
                 }
@@ -293,7 +402,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         // render
         {
             use glium::{
-                Blend, BackfaceCullingMode, Depth, DepthTest, DrawParameters, Rect,
+                BackfaceCullingMode, Blend, Depth, DepthTest, DrawParameters, Rect,
                 Surface, draw_parameters::{Stencil, StencilOperation, StencilTest},
             };
             use graphics::Mesh;
@@ -304,7 +413,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 color: Vec4<f32>,
             }
 
-            let mut render_buffer = Vec::with_capacity(100);
+            let mut lit_render_buffer = Vec::with_capacity(100);
+            let mut highlight_render_buffer = Vec::with_capacity(64);
 
             // Add some chessboard squares
             for y in 0..8 {
@@ -314,7 +424,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
                     };
-                    render_buffer.push(RenderCommand {
+                    lit_render_buffer.push(RenderCommand {
                         position,
                         mesh: &cube_mesh,
                         color,
@@ -325,20 +435,52 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             // Add some chess pieces
             for piece in &pieces {
                 let color = match piece.color {
-                    ChessColor::Black => Vec4::from_slice(&config.colors.grey).as_f32(),
-                    ChessColor::White => Vec4::from_slice(&config.colors.white).as_f32(),
+                    ChessColor::Black => {
+                        Vec4::from_slice(&config.colors.grey).as_f32()
+                    }
+                    ChessColor::White => {
+                        Vec4::from_slice(&config.colors.white).as_f32()
+                    }
                 };
 
                 let mesh = match piece.piece_type {
                     PieceType::Pawn => &pawn_mesh,
+                    PieceType::King => &king_mesh,
                 };
 
-                render_buffer.push(RenderCommand {
+                lit_render_buffer.push(RenderCommand {
                     position: chessjam::grid_to_world(piece.position),
                     mesh,
                     color,
                 });
             }
+
+            // Add tile highlights
+            let height_offset = vec3(0.0, 0.2, 0.0);
+
+            if let Some(index) = selected_piece_index {
+                let position = pieces[index].position;
+                highlight_render_buffer.push(RenderCommand {
+                    position: chessjam::grid_to_world(position) + height_offset,
+                    mesh: &cube_mesh,
+                    color: Vec4::from_slice(&config.colors.selected).as_f32(),
+                });
+            }
+
+            highlight_render_buffer.push(RenderCommand {
+                position: chessjam::grid_to_world(tile_cursor) + height_offset,
+                mesh: &cube_mesh,
+                color: Vec4::from_slice(&config.colors.cursor).as_f32(),
+            });
+
+            for &dest in &valid_destinations {
+                highlight_render_buffer.push(RenderCommand {
+                    position: chessjam::grid_to_world(dest) + height_offset,
+                    mesh: &cube_mesh,
+                    color: Vec4::from_slice(&config.colors.dest).as_f32(),
+                });
+            }
+
 
             let mut frame = display.draw();
             frame.clear_all_srgb((0.0, 0.0, 0.0, 1.0), 1.0, 0);
@@ -380,7 +522,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
 
             // Render all objects as if in shadow
-            for command in &render_buffer {
+            for command in &lit_render_buffer {
                 let model_matrix = Mat4::translation(command.position);
                 let normal_matrix = Mat3::<f32>::identity();
                 let mvp_matrix = view_projection_matrix * model_matrix;
@@ -441,7 +583,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 shadow_front_draw_params,
                 shadow_back_draw_params,
             ] {
-                for command in &render_buffer {
+                for command in &lit_render_buffer {
                     let model_matrix = Mat4::translation(command.position);
                     let mvp_matrix = view_projection_matrix * model_matrix;
                     let model_space_shadow_direction = shadow_direction.retract();
@@ -464,7 +606,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             }
 
             // Render objects fully lit outside shadow volumes
-            for command in &render_buffer {
+            for command in &lit_render_buffer {
                 let model_matrix = Mat4::translation(command.position);
                 let normal_matrix = Mat3::<f32>::identity();
                 let mvp_matrix = view_projection_matrix * model_matrix;
@@ -502,9 +644,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     .unwrap();
             }
 
-            // Render cursor
+            // Render highlights
             {
-                let cursor_draw_params = DrawParameters {
+                let highlight_draw_params = DrawParameters {
                     depth: Depth {
                         test: DepthTest::IfLess,
                         write: false,
@@ -516,27 +658,27 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     ..Default::default()
                 };
 
-                let cursor_pos = chessjam::grid_to_world(tile_cursor)
-                    + vec3(0.0, 0.125, 0.0);
-                let model_matrix = Mat4::translation(cursor_pos);
-                let normal_matrix = Mat3::<f32>::identity();
-                let mvp_matrix = view_projection_matrix * model_matrix;
+                for highlight in &highlight_render_buffer {
+                    let model_matrix = Mat4::translation(highlight.position);
+                    let normal_matrix = Mat3::<f32>::identity();
+                    let mvp_matrix = view_projection_matrix * model_matrix;
 
-                frame
-                    .draw(
-                        &cube_mesh.vertices,
-                        &cube_mesh.indices,
-                        &model_shader,
-                        &uniform!{
-                            transform: mvp_matrix.0,
-                            normal_matrix: normal_matrix.0,
-                            light_direction_matrix: light_direction_matrix.0,
-                            light_color_matrix: light_color_matrix.0,
-                            albedo: Vec4::from_slice(&config.colors.cursor).as_f32().0,
-                        },
-                        &cursor_draw_params,
-                    )
-                    .unwrap();
+                    frame
+                        .draw(
+                            &highlight.mesh.vertices,
+                            &highlight.mesh.indices,
+                            &model_shader,
+                            &uniform!{
+                                transform: mvp_matrix.0,
+                                normal_matrix: normal_matrix.0,
+                                light_direction_matrix: light_direction_matrix.0,
+                                light_color_matrix: light_color_matrix.0,
+                                albedo: highlight.color.0,
+                            },
+                            &highlight_draw_params,
+                        )
+                        .unwrap();
+                }
             }
 
             frame.finish().unwrap();
