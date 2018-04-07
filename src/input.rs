@@ -2,6 +2,7 @@
 
 pub use glium::glutin::ModifiersState;
 pub use glium::glutin::VirtualKeyCode as Key;
+pub use glium::glutin::MouseButton as Button;
 
 
 #[derive(Clone)]
@@ -59,5 +60,76 @@ impl<'a> KeyboardInput<'a> {
         self.keyboard.keys_down[key as usize] = false;
         self.keyboard.keys_released[key as usize] = true;
         self.keyboard.modifiers = modifiers;
+    }
+}
+
+
+#[derive(Clone, Default)]
+pub struct Mouse {
+    position: [f64; 2],
+    down_position: Option<[f64; 2]>,
+    buttons_down: [bool; 8],
+    buttons_pressed: [bool; 8],
+    buttons_released: [bool; 8],
+}
+
+impl Mouse {
+    pub fn begin_frame_input(&mut self) -> MouseInput {
+        self.buttons_pressed = [false; 8];
+        self.buttons_released = [false; 8];
+        MouseInput { mouse: self }
+    }
+
+    pub fn position(&self) -> [f64; 2] {
+        self.position
+    }
+
+    pub fn down_position(&self) -> Option<[f64; 2]> {
+        self.down_position
+    }
+
+    pub fn down(&self, button: Button) -> bool {
+        self.buttons_down[mouse_button_to_index(button)]
+    }
+
+    pub fn pressed(&self, button: Button) -> bool {
+        self.buttons_pressed[mouse_button_to_index(button)]
+    }
+
+    pub fn released(&self, button: Button) -> bool {
+        self.buttons_released[mouse_button_to_index(button)]
+    }
+}
+
+
+fn mouse_button_to_index(button: Button) -> usize {
+    match button {
+        Button::Left => 0,
+        Button::Middle => 1,
+        Button::Right => 2,
+        Button::Other(n) => n as usize,
+    }
+}
+
+
+pub struct MouseInput<'a> {
+    mouse: &'a mut Mouse,
+}
+
+impl<'a> MouseInput<'a> {
+    pub fn move_cursor_to(&mut self, x: f64, y: f64) {
+        self.mouse.position = [x, y];
+    }
+
+    pub fn press(&mut self, button: Button) {
+        self.mouse.buttons_down[mouse_button_to_index(button)] = true;
+        self.mouse.buttons_pressed[mouse_button_to_index(button)] = true;
+        self.mouse.down_position = Some(self.mouse.position);
+    }
+
+    pub fn release(&mut self, button: Button) {
+        self.mouse.buttons_down[mouse_button_to_index(button)] = false;
+        self.mouse.buttons_released[mouse_button_to_index(button)] = true;
+        self.mouse.down_position = None;
     }
 }
