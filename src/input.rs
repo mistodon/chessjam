@@ -1,8 +1,8 @@
 #![allow(dead_code)] // TODO(claire): Remove
 
 pub use glium::glutin::ModifiersState;
-pub use glium::glutin::VirtualKeyCode as Key;
 pub use glium::glutin::MouseButton as Button;
+pub use glium::glutin::VirtualKeyCode as Key;
 
 
 #[derive(Clone)]

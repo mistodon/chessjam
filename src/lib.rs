@@ -44,7 +44,9 @@ pub fn viewport_rect(
 
 pub fn world_to_grid(point: Vec3<f32>) -> Vec2<i32> {
     let (x, _, y) = point.as_tuple();
-    (vec2(x, y) + vec2(3.5, 3.5)).map(f32::round).as_i32()
+    (vec2(x, y) + vec2(3.5, 3.5))
+        .map(f32::round)
+        .as_i32()
 }
 
 pub fn grid_to_world(point: Vec2<i32>) -> Vec3<f32> {
