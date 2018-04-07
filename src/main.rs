@@ -94,7 +94,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
-    let mut mouse = vec2(0.5, 0.5);
+    let mut mouse = Mouse::default();
 
 
     const TARGET_ASPECT: f32 = 16.0 / 9.0;
@@ -184,6 +184,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         }
         pieces
     };
+    let mut selected_piece_index: Option<usize> = None;
 
     loop {
         let (_dt, now) = chessjam::delta_time(frame_time);
@@ -195,6 +196,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             use glium::glutin::{ElementState, Event, WindowEvent};
 
             let mut keyboard = keyboard.begin_frame_input();
+            let mut mouse = mouse.begin_frame_input();
 
             #[allow(single_match)]
             events_loop.poll_events(|event| match event {
@@ -211,10 +213,18 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             }
                         }
                     }
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        let pressed = state == ElementState::Pressed;
+                        if pressed {
+                            mouse.press(button);
+                        }
+                        else {
+                            mouse.release(button);
+                        }
+                    }
                     WindowEvent::CursorMoved { position, .. } => {
-                        let (w, h) = display.get_framebuffer_dimensions();
                         let (x, y) = position;
-                        mouse = vec2(x, y).as_f32() / vec2(w, h).as_f32();
+                        mouse.move_cursor_to(x, y);
                     }
                     WindowEvent::Closed => closed = true,
                     _ => (),
@@ -235,7 +245,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             let camera_right = vec3(0.0, 1.0, 0.0).cross(camera_forward).norm();
             let camera_up = camera_forward.cross(camera_right);
 
-            let (mx, my) = ((mouse - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
+            let (w, h) = display.get_framebuffer_dimensions();
+            let mouse_pos = (Vec2(mouse.position()) / vec2(w, h).as_f64()).as_f32();
+            let (mx, my) = ((mouse_pos - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
             let near_plane_half_height = (camera_fov / 2.0).tan() * CAMERA_NEAR_PLANE;
             let near_plane_half_width = near_plane_half_height * TARGET_ASPECT;
 
@@ -253,6 +265,29 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
         // update
         {
+            fn piece_at(position: Vec2<i32>, pieces: &[Piece]) -> Option<usize> {
+                let mut result = None;
+                for (index, piece) in pieces.iter().enumerate() {
+                    if piece.position == position {
+                        result = Some(index);
+                    }
+                }
+                result
+            }
+
+            if mouse.pressed(Button::Left) {
+                match selected_piece_index {
+                    None => {
+                        selected_piece_index = piece_at(tile_cursor, &pieces);
+                    }
+                    Some(index) => {
+                        if piece_at(tile_cursor, &pieces).is_none() {
+                            pieces[index].position = tile_cursor;
+                            selected_piece_index = None;
+                        }
+                    }
+                }
+            }
         }
 
         // render
