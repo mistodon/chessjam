@@ -79,23 +79,26 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
 
     const TARGET_ASPECT: f32 = 16.0 / 9.0;
+    const CAMERA_NEAR_PLANE: f32 = 0.1;
+    let camera_fov = consts::TAU32 * config.camera.fov as f32;
     let projection_matrix = matrix::perspective_projection(
         TARGET_ASPECT,
-        consts::TAU32 * config.camera.fov as f32,
-        0.1,
+        camera_fov,
+        CAMERA_NEAR_PLANE,
         100.0,
     );
 
+    let camera_position = vec3(
+        0.0,
+        config.camera.height,
+        -config.camera.distance,
+    ).as_f32();
+    let camera_focus = vec3(0.0, 0.0, 0.0);
+    let camera_direction = camera_focus - camera_position;
+
     let view_matrix = {
-        let position = vec3(
-            0.0,
-            config.camera.height,
-            -config.camera.distance,
-        ).as_f32();
-        let focus = vec3(0.0, 0.0, 0.0);
-        let direction = focus - position;
-        let orientation = matrix::look_rotation(direction, vec3(0.0, 1.0, 0.0));
-        let translation = Mat4::translation(-position);
+        let orientation = matrix::look_rotation(camera_direction, vec3(0.0, 1.0, 0.0));
+        let translation = Mat4::translation(-camera_position);
         orientation.transpose() * translation
     };
 
@@ -193,13 +196,12 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
         // Update
         {
-            println!("{:?}", mouse);
         }
 
         // render
         {
             use glium::{
-                BackfaceCullingMode, Depth, DepthTest, DrawParameters, Rect,
+                Blend, BackfaceCullingMode, Depth, DepthTest, DrawParameters, Rect,
                 Surface, draw_parameters::{Stencil, StencilOperation, StencilTest},
             };
             use graphics::Mesh;
@@ -257,6 +259,30 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     width,
                     height,
                 }
+            };
+
+            // Work out mouse tile position
+            let tile_cursor = {
+                let camera_forward = camera_direction.norm();
+                let camera_right = vec3(0.0, 1.0, 0.0).cross(camera_forward).norm();
+                let camera_up = camera_forward.cross(camera_right);
+
+                let (mx, my) = ((mouse - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
+                let near_plane_half_height = (camera_fov / 2.0).tan() * CAMERA_NEAR_PLANE;
+                let near_plane_half_width = near_plane_half_height * TARGET_ASPECT;
+
+                let mouse_ray = {
+                    (camera_right * mx * near_plane_half_width)
+                    + (camera_up * my * near_plane_half_height)
+                    + (camera_forward * CAMERA_NEAR_PLANE)
+                };
+
+                let t = -(camera_position.0[1] / mouse_ray.0[1]);
+                let mouse_ground_ray_hit = camera_position + mouse_ray * t;
+                let mut mouse_ground_ray_hit = mouse_ground_ray_hit.map(f32::ceil) + vec3(-0.5, 0.0, -0.5);
+                mouse_ground_ray_hit.0[1] = 0.125;
+
+                mouse_ground_ray_hit
             };
 
             let clear_color = Vec4::from_slice(&config.colors.sky)
@@ -401,6 +427,41 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             albedo: command.color.0,
                         },
                         &fully_lit_draw_params,
+                    )
+                    .unwrap();
+            }
+
+            // Render cursor
+            {
+                let cursor_draw_params = DrawParameters {
+                    depth: Depth {
+                        test: DepthTest::IfLess,
+                        write: false,
+                        ..Default::default()
+                    },
+                    blend: Blend::alpha_blending(),
+                    backface_culling: BackfaceCullingMode::CullClockwise,
+                    viewport: Some(viewport),
+                    ..Default::default()
+                };
+
+                let model_matrix = Mat4::translation(tile_cursor);
+                let normal_matrix = Mat3::<f32>::identity();
+                let mvp_matrix = view_projection_matrix * model_matrix;
+
+                frame
+                    .draw(
+                        &cube_mesh.vertices,
+                        &cube_mesh.indices,
+                        &model_shader,
+                        &uniform!{
+                            transform: mvp_matrix.0,
+                            normal_matrix: normal_matrix.0,
+                            light_direction_matrix: light_direction_matrix.0,
+                            light_color_matrix: light_color_matrix.0,
+                            albedo: Vec4::from_slice(&config.colors.cursor).as_f32().0,
+                        },
+                        &cursor_draw_params,
                     )
                     .unwrap();
             }
