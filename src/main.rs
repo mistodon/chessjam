@@ -20,6 +20,25 @@ use glium::glutin::EventsLoop;
 use input::*;
 
 
+#[derive(Debug)]
+pub struct Piece {
+    pub position: Vec2<i32>,
+    pub color: ChessColor,
+    pub piece_type: PieceType,
+}
+
+#[derive(Debug)]
+pub enum ChessColor {
+    Black,
+    White,
+}
+
+#[derive(Debug)]
+pub enum PieceType {
+    Pawn,
+}
+
+
 fn main() {
     use glium::glutin::{Api, ContextBuilder, GlProfile, GlRequest, WindowBuilder};
 
@@ -149,6 +168,23 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             .0,
     ]);
 
+    let mut pieces = {
+        let mut pieces = Vec::new();
+        for x in 0..8 {
+            pieces.push(Piece {
+                position: vec2(x, 1),
+                color: ChessColor::White,
+                piece_type: PieceType::Pawn,
+            });
+            pieces.push(Piece {
+                position: vec2(x, 6),
+                color: ChessColor::Black,
+                piece_type: PieceType::Pawn,
+            });
+        }
+        pieces
+    };
+
     loop {
         let (_dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
@@ -194,7 +230,28 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             return true;
         }
 
-        // Update
+        let tile_cursor = {
+            let camera_forward = camera_direction.norm();
+            let camera_right = vec3(0.0, 1.0, 0.0).cross(camera_forward).norm();
+            let camera_up = camera_forward.cross(camera_right);
+
+            let (mx, my) = ((mouse - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
+            let near_plane_half_height = (camera_fov / 2.0).tan() * CAMERA_NEAR_PLANE;
+            let near_plane_half_width = near_plane_half_height * TARGET_ASPECT;
+
+            let mouse_ray = {
+                (camera_right * mx * near_plane_half_width)
+                    + (camera_up * my * near_plane_half_height)
+                    + (camera_forward * CAMERA_NEAR_PLANE)
+            };
+
+            let t = -(camera_position.0[1] / mouse_ray.0[1]);
+            let hit = camera_position + mouse_ray * t;
+
+            chessjam::world_to_grid(hit)
+        };
+
+        // update
         {
         }
 
@@ -231,17 +288,20 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             }
 
             // Add some chess pieces
-            for i in 0..8 {
-                let x = -3.5 + i as f32;
+            for piece in &pieces {
+                let color = match piece.color {
+                    ChessColor::Black => Vec4::from_slice(&config.colors.grey).as_f32(),
+                    ChessColor::White => Vec4::from_slice(&config.colors.white).as_f32(),
+                };
+
+                let mesh = match piece.piece_type {
+                    PieceType::Pawn => &pawn_mesh,
+                };
+
                 render_buffer.push(RenderCommand {
-                    position: vec3(x, 0.0, -2.5),
-                    mesh: &pawn_mesh,
-                    color: Vec4::from_slice(&config.colors.white).as_f32(),
-                });
-                render_buffer.push(RenderCommand {
-                    position: vec3(x, 0.0, 2.5),
-                    mesh: &pawn_mesh,
-                    color: Vec4::from_slice(&config.colors.grey).as_f32(),
+                    position: chessjam::grid_to_world(piece.position),
+                    mesh,
+                    color,
                 });
             }
 
@@ -259,30 +319,6 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     width,
                     height,
                 }
-            };
-
-            // Work out mouse tile position
-            let tile_cursor = {
-                let camera_forward = camera_direction.norm();
-                let camera_right = vec3(0.0, 1.0, 0.0).cross(camera_forward).norm();
-                let camera_up = camera_forward.cross(camera_right);
-
-                let (mx, my) = ((mouse - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
-                let near_plane_half_height = (camera_fov / 2.0).tan() * CAMERA_NEAR_PLANE;
-                let near_plane_half_width = near_plane_half_height * TARGET_ASPECT;
-
-                let mouse_ray = {
-                    (camera_right * mx * near_plane_half_width)
-                    + (camera_up * my * near_plane_half_height)
-                    + (camera_forward * CAMERA_NEAR_PLANE)
-                };
-
-                let t = -(camera_position.0[1] / mouse_ray.0[1]);
-                let mouse_ground_ray_hit = camera_position + mouse_ray * t;
-                let mut mouse_ground_ray_hit = mouse_ground_ray_hit.map(f32::ceil) + vec3(-0.5, 0.0, -0.5);
-                mouse_ground_ray_hit.0[1] = 0.125;
-
-                mouse_ground_ray_hit
             };
 
             let clear_color = Vec4::from_slice(&config.colors.sky)
@@ -445,7 +481,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     ..Default::default()
                 };
 
-                let model_matrix = Mat4::translation(tile_cursor);
+                let cursor_pos = chessjam::grid_to_world(tile_cursor)
+                    + vec3(0.0, 0.125, 0.0);
+                let model_matrix = Mat4::translation(cursor_pos);
                 let normal_matrix = Mat3::<f32>::identity();
                 let mvp_matrix = view_projection_matrix * model_matrix;
 

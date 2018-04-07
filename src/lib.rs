@@ -6,10 +6,15 @@ extern crate serde_derive;
 #[cfg(debug_assertions)]
 extern crate toml;
 
+extern crate adequate_math;
+
 pub mod config;
 mod gen_config;
 
 use std::time::Instant;
+
+use adequate_math::*;
+
 
 pub fn delta_time(previous_time: Instant) -> (f32, Instant) {
     let now = Instant::now();
@@ -35,4 +40,14 @@ pub fn viewport_rect(
     let bottom = (pixel_height - height) / 2;
 
     (left, bottom, width, height)
+}
+
+pub fn world_to_grid(point: Vec3<f32>) -> Vec2<i32> {
+    let (x, _, y) = point.as_tuple();
+    (vec2(x, y) + vec2(3.5, 3.5)).map(f32::round).as_i32()
+}
+
+pub fn grid_to_world(point: Vec2<i32>) -> Vec3<f32> {
+    let (x, y) = point.as_tuple();
+    vec3(x, 0, y).as_f32() - vec3(3.5, 0.0, 3.5)
 }
