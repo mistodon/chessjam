@@ -3,6 +3,11 @@ name = "chessjam"
 version = "0.1.0"
 authors = ["Claire Harris <claire.harris.000@gmail.com>"]
 
+[profile.release]
+# Seems like pleco might depend on panic_unwind for some reason ...
+# panic = "abort"
+lto = true
+
 [dependencies]
 glium = "=0.19.0"
 image = "=0.18.0"
