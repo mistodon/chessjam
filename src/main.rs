@@ -38,7 +38,7 @@ pub enum ChessColor {
 pub enum PieceType {
     Pawn,
 //     Knight,
-//     Rook,
+    Rook,
     Bishop,
     Queen,
     King,
@@ -112,6 +112,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let bishop_mesh = graphics::create_obj_mesh(
         display,
         asset_str!("assets/meshes/bishop.obj").as_ref(),
+    );
+
+    let rook_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/rook.obj").as_ref(),
     );
 
     let mut frame_time = Instant::now();
@@ -234,6 +239,16 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             position: vec2(2, 7),
             color: ChessColor::Black,
             piece_type: PieceType::Bishop,
+        });
+        pieces.push(Piece {
+            position: vec2(0, 0),
+            color: ChessColor::White,
+            piece_type: PieceType::Rook,
+        });
+        pieces.push(Piece {
+            position: vec2(0, 7),
+            color: ChessColor::Black,
+            piece_type: PieceType::Rook,
         });
         pieces
     };
@@ -389,10 +404,12 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                                 (White, King) => "K",
                                                 (White, Queen) => "Q",
                                                 (White, Bishop) => "B",
+                                                (White, Rook) => "R",
                                                 (Black, Pawn) => "p",
                                                 (Black, King) => "k",
                                                 (Black, Queen) => "q",
                                                 (Black, Bishop) => "b",
+                                                (Black, Rook) => "r",
                                             };
                                         buffer.push_str(ch);
                                     }
@@ -486,6 +503,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     PieceType::King => &king_mesh,
                     PieceType::Queen => &queen_mesh,
                     PieceType::Bishop => &bishop_mesh,
+                    PieceType::Rook => &rook_mesh,
                 };
 
                 lit_render_buffer.push(RenderCommand {
