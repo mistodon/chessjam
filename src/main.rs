@@ -37,7 +37,7 @@ pub enum ChessColor {
 #[derive(Debug, Copy, Clone)]
 pub enum PieceType {
     Pawn,
-//     Knight,
+    Knight,
     Rook,
     Bishop,
     Queen,
@@ -117,6 +117,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let rook_mesh = graphics::create_obj_mesh(
         display,
         asset_str!("assets/meshes/rook.obj").as_ref(),
+    );
+
+    let knight_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/knight.obj").as_ref(),
     );
 
     let mut frame_time = Instant::now();
@@ -239,6 +244,16 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             position: vec2(2, 7),
             color: ChessColor::Black,
             piece_type: PieceType::Bishop,
+        });
+        pieces.push(Piece {
+            position: vec2(1, 0),
+            color: ChessColor::White,
+            piece_type: PieceType::Knight,
+        });
+        pieces.push(Piece {
+            position: vec2(1, 7),
+            color: ChessColor::Black,
+            piece_type: PieceType::Knight,
         });
         pieces.push(Piece {
             position: vec2(0, 0),
@@ -405,11 +420,13 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                                 (White, Queen) => "Q",
                                                 (White, Bishop) => "B",
                                                 (White, Rook) => "R",
+                                                (White, Knight) => "N",
                                                 (Black, Pawn) => "p",
                                                 (Black, King) => "k",
                                                 (Black, Queen) => "q",
                                                 (Black, Bishop) => "b",
                                                 (Black, Rook) => "r",
+                                                (Black, Knight) => "n",
                                             };
                                         buffer.push_str(ch);
                                     }
@@ -504,6 +521,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     PieceType::Queen => &queen_mesh,
                     PieceType::Bishop => &bishop_mesh,
                     PieceType::Rook => &rook_mesh,
+                    PieceType::Knight => &knight_mesh,
                 };
 
                 lit_render_buffer.push(RenderCommand {
