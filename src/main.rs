@@ -37,6 +37,10 @@ pub enum ChessColor {
 #[derive(Debug, Copy, Clone)]
 pub enum PieceType {
     Pawn,
+//     Knight,
+//     Rook,
+//     Bishop,
+    Queen,
     King,
 }
 
@@ -98,6 +102,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let king_mesh = graphics::create_obj_mesh(
         display,
         asset_str!("assets/meshes/king.obj").as_ref(),
+    );
+
+    let queen_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/queen.obj").as_ref(),
     );
 
     let mut frame_time = Instant::now();
@@ -200,6 +209,16 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             position: vec2(4, 7),
             color: ChessColor::Black,
             piece_type: PieceType::King,
+        });
+        pieces.push(Piece {
+            position: vec2(3, 0),
+            color: ChessColor::White,
+            piece_type: PieceType::Queen,
+        });
+        pieces.push(Piece {
+            position: vec2(3, 7),
+            color: ChessColor::Black,
+            piece_type: PieceType::Queen,
         });
         pieces
     };
@@ -353,8 +372,10 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                             match (piece.color, piece.piece_type) {
                                                 (White, Pawn) => "P",
                                                 (White, King) => "K",
+                                                (White, Queen) => "Q",
                                                 (Black, Pawn) => "p",
                                                 (Black, King) => "k",
+                                                (Black, Queen) => "q",
                                             };
                                         buffer.push_str(ch);
                                     }
@@ -446,6 +467,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 let mesh = match piece.piece_type {
                     PieceType::Pawn => &pawn_mesh,
                     PieceType::King => &king_mesh,
+                    PieceType::Queen => &queen_mesh,
                 };
 
                 lit_render_buffer.push(RenderCommand {
