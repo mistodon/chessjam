@@ -297,6 +297,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         });
         pieces
     };
+
     let mut selected_piece_index: Option<usize> = None;
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
     let mut whos_turn = ChessColor::White;
@@ -400,16 +401,19 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         selected_piece_index = piece_at(tile_cursor, &pieces);
                     }
                     Some(index) => {
-                        if piece_at(tile_cursor, &pieces).is_none() {
-                            if valid_destinations.contains(&tile_cursor) {
-                                pieces[index].position = tile_cursor;
-                                whos_turn = match whos_turn {
-                                    ChessColor::White => ChessColor::Black,
-                                    ChessColor::Black => ChessColor::White,
-                                }
+                        if valid_destinations.contains(&tile_cursor) {
+                            let taken_piece = piece_at(tile_cursor, &pieces);
+                            pieces[index].position = tile_cursor;
+                            whos_turn = match whos_turn {
+                                ChessColor::White => ChessColor::Black,
+                                ChessColor::Black => ChessColor::White,
+                            };
+
+                            if let Some(index) = taken_piece {
+                                pieces.swap_remove(index);
                             }
-                            selected_piece_index = None;
                         }
+                        selected_piece_index = None;
                     }
                 }
 
