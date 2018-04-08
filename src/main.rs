@@ -241,7 +241,17 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             piece_type: PieceType::Bishop,
         });
         pieces.push(Piece {
+            position: vec2(5, 0),
+            color: ChessColor::White,
+            piece_type: PieceType::Bishop,
+        });
+        pieces.push(Piece {
             position: vec2(2, 7),
+            color: ChessColor::Black,
+            piece_type: PieceType::Bishop,
+        });
+        pieces.push(Piece {
+            position: vec2(5, 7),
             color: ChessColor::Black,
             piece_type: PieceType::Bishop,
         });
@@ -251,7 +261,17 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             piece_type: PieceType::Knight,
         });
         pieces.push(Piece {
+            position: vec2(6, 0),
+            color: ChessColor::White,
+            piece_type: PieceType::Knight,
+        });
+        pieces.push(Piece {
             position: vec2(1, 7),
+            color: ChessColor::Black,
+            piece_type: PieceType::Knight,
+        });
+        pieces.push(Piece {
+            position: vec2(6, 7),
             color: ChessColor::Black,
             piece_type: PieceType::Knight,
         });
@@ -261,7 +281,17 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             piece_type: PieceType::Rook,
         });
         pieces.push(Piece {
+            position: vec2(7, 0),
+            color: ChessColor::White,
+            piece_type: PieceType::Rook,
+        });
+        pieces.push(Piece {
             position: vec2(0, 7),
+            color: ChessColor::Black,
+            piece_type: PieceType::Rook,
+        });
+        pieces.push(Piece {
+            position: vec2(7, 7),
             color: ChessColor::Black,
             piece_type: PieceType::Rook,
         });
