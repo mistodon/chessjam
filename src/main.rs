@@ -139,17 +139,14 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         100.0,
     );
 
-    let camera_position = vec3(
-        0.0,
-        config.camera.height,
-        -config.camera.distance,
-    ).as_f32();
-    let camera_focus = vec3(0.0, 0.0, 0.0);
-    let camera_direction = camera_focus - camera_position;
+    let camera_position: Vec3<f32>;
+    let camera_direction: Vec3<f32>;
 
     let view_matrix = {
-        let orientation =
-            matrix::look_rotation(camera_direction, vec3(0.0, 1.0, 0.0));
+        let angles = vec3(config.camera.tilt, config.camera.angle, 0.0).map(f64::to_radians).as_f32();
+        let orientation = matrix::euler_rotation(angles);
+        camera_direction = (orientation * vec4(0.0, 0.0, 1.0, 0.0)).retract();
+        camera_position = -camera_direction * config.camera.distance as f32;
         let translation = Mat4::translation(-camera_position);
         orientation.transpose() * translation
     };
@@ -409,6 +406,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                 ChessColor::Black => ChessColor::White,
                             };
 
+                            // TODO(***realname***): When castling, this will do Bad Things.
                             if let Some(index) = taken_piece {
                                 pieces.swap_remove(index);
                             }
