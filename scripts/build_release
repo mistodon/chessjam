@@ -34,7 +34,7 @@ readonly blue="\033[36m"
 readonly name=Purchess
 readonly crate=chessjam
 readonly package="com.falseidolfactory.purchess"
-readonly version=$(sed -n 's/.*version = "\(.*\)".*/\1/p' Cargo.toml)
+readonly version=$(sed -n 's/.*version = "\(.*\)".*/\1/p' Cargo.toml | head -1)
 readonly commit=$(git rev-parse --short HEAD)
 readonly platform=$(get_platform)
 readonly release="${name}_${version}_${platform}_${commit}"
@@ -114,7 +114,7 @@ if [[ "$platform" == "macOS" ]]; then
     say
     say "${blue}Generating icons${white}:"
     readonly tmp_icons=/tmp/${name}.iconset
-    readonly src_icon=./dev_assets/icons/icon_1024px_trans.png
+    readonly src_icon=./source_assets/icons/icon_1024px_trans.png
     mkdir $tmp_icons
     sips -z 16 16     $src_icon --out $tmp_icons/icon_16x16.png
     sips -z 32 32     $src_icon --out $tmp_icons/icon_16x16@2x.png
@@ -130,10 +130,12 @@ if [[ "$platform" == "macOS" ]]; then
     rm -R $tmp_icons
 
     say
-    say "${blue}Signing app${white}:"
-    readonly cert="Mac Developer: pir.***lastname***"
-    say "${blue}cert${white}: $cert"
-    codesign -s "$cert" "$app_dir"
+    sayerr "${yellow}WARNING!: Not signing app as identity is not set up."
+#   TODO(***realname***): Maybe fix release signing?
+#     say "${blue}Signing app${white}:"
+#     readonly cert="Mac Developer: pir.***lastname***"
+#     say "${blue}cert${white}: $cert"
+#     codesign -s "$cert" "$app_dir"
 
     readonly zip_file=${release}.zip
     say
