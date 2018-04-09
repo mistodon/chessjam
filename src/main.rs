@@ -366,6 +366,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             orientation.transpose() * translation
         };
 
+        let view_vector = -camera_direction.norm();
+
         let view_projection_matrix = projection_matrix * view_matrix;
 
 
@@ -661,6 +663,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: shadow_color_matrix.0,
                             albedo: command.color.0,
+                            view_vector: view_vector.0,
+                            specular_power: config.light.specular_power as f32,
                         },
                         &draw_params,
                     )
@@ -761,6 +765,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: light_color_matrix.0,
                             albedo: command.color.0,
+                            view_vector: view_vector.0,
+                            specular_power: config.light.specular_power as f32,
                         },
                         &fully_lit_draw_params,
                     )
