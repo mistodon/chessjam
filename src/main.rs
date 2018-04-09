@@ -297,7 +297,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         let mut camera_motion = vec2(0.0, 0.0);
 
         {
-            use glium::glutin::{ElementState, Event, WindowEvent, MouseScrollDelta::PixelDelta};
+            use glium::glutin::{ElementState, Event, MouseScrollDelta, WindowEvent};
 
             let mut keyboard = keyboard.begin_frame_input();
             let mut mouse = mouse.begin_frame_input();
@@ -329,7 +329,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         }
                     }
                     WindowEvent::MouseWheel { delta, .. } => {
-                        if let PixelDelta(x, y) = delta {
+                        if let MouseScrollDelta::PixelDelta(x, y) = delta {
                             camera_motion = vec2(x, y);
                         }
                     }
@@ -369,7 +369,6 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         let view_vector = -camera_direction.norm();
 
         let view_projection_matrix = projection_matrix * view_matrix;
-
 
 
         let tile_cursor = {
