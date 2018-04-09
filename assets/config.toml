@@ -21,6 +21,8 @@ key_color = [0.8, 0.8, 0.8, 1.0]
 fill_color = [0.4, 0.4, 0.4, 1.0]
 back_color = [0.2, 0.2, 0.2, 1.0]
 amb_color = [0.1, 0.1, 0.1, 1.0]
+specular_power = 10.0
+
 
 [shadow]
 key_color = [0.05, 0.05, 0.05, 1.0]
