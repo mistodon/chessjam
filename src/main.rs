@@ -139,19 +139,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         100.0,
     );
 
-    let camera_position: Vec3<f32>;
-    let camera_direction: Vec3<f32>;
-
-    let view_matrix = {
-        let angles = vec3(config.camera.tilt, config.camera.angle, 0.0).map(f64::to_radians).as_f32();
-        let orientation = matrix::euler_rotation(angles);
-        camera_direction = (orientation * vec4(0.0, 0.0, 1.0, 0.0)).retract();
-        camera_position = -camera_direction * config.camera.distance as f32;
-        let translation = Mat4::translation(-camera_position);
-        orientation.transpose() * translation
-    };
-
-    let view_projection_matrix = projection_matrix * view_matrix;
+    let mut camera_angle = config.camera.angle as f32;
+    let mut camera_tilt = config.camera.tilt as f32;
 
     let shadow_direction = Vec4::from_slice(&config.light.key_dir)
         .norm()
@@ -300,13 +289,15 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let mut whos_turn = ChessColor::White;
 
     loop {
-        let (_dt, now) = chessjam::delta_time(frame_time);
+        let (dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
 
         // handle_events
         let mut closed = false;
+        let mut camera_motion = vec2(0.0, 0.0);
+
         {
-            use glium::glutin::{ElementState, Event, WindowEvent};
+            use glium::glutin::{ElementState, Event, WindowEvent, MouseScrollDelta::PixelDelta};
 
             let mut keyboard = keyboard.begin_frame_input();
             let mut mouse = mouse.begin_frame_input();
@@ -337,6 +328,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             mouse.release(button);
                         }
                     }
+                    WindowEvent::MouseWheel { delta, .. } => {
+                        if let PixelDelta(x, y) = delta {
+                            camera_motion = vec2(x, y);
+                        }
+                    }
                     WindowEvent::CursorMoved { position, .. } => {
                         let (x, y) = position;
                         mouse.move_cursor_to(x, y);
@@ -354,6 +350,25 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         if keyboard.pressed(Key::R) && keyboard.modifiers.logo {
             return true;
         }
+
+        camera_angle += camera_motion.0[0] * dt;
+        camera_tilt += camera_motion.0[1] * dt;
+
+        let camera_position: Vec3<f32>;
+        let camera_direction: Vec3<f32>;
+
+        let view_matrix = {
+            let angles = vec3(camera_tilt, camera_angle, 0.0).map(f32::to_radians);
+            let orientation = matrix::euler_rotation(angles);
+            camera_direction = (orientation * vec4(0.0, 0.0, 1.0, 0.0)).retract();
+            camera_position = -camera_direction * config.camera.distance as f32;
+            let translation = Mat4::translation(-camera_position);
+            orientation.transpose() * translation
+        };
+
+        let view_projection_matrix = projection_matrix * view_matrix;
+
+
 
         let tile_cursor = {
             let camera_forward = camera_direction.norm();
