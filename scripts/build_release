@@ -1,0 +1,153 @@
+#!/bin/bash
+set -e
+
+# Helpers
+
+function say
+{
+    echo -e $@ "${white}"
+}
+
+function sayerr
+{
+    echo -e $@ "${white}" >&2
+}
+
+function get_platform
+{
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "macOS"
+    else
+        echo "unknown"
+    fi
+}
+
+readonly white="\033[0m"
+readonly red="\033[31m"
+readonly green="\033[32m"
+readonly yellow="\033[33m"
+readonly blue="\033[36m"
+
+
+# Setup
+
+readonly name=Purchess
+readonly crate=chessjam
+readonly package="com.falseidolfactory.purchess"
+readonly version=$(sed -n 's/.*version = "\(.*\)".*/\1/p' Cargo.toml)
+readonly commit=$(git rev-parse --short HEAD)
+readonly platform=$(get_platform)
+readonly release="${name}_${version}_${platform}_${commit}"
+readonly output_dir="./release_builds/$release"
+
+rm -rf $output_dir
+mkdir -p $output_dir
+
+# Let's go
+
+say
+say "${blue}Creating release${white}:"
+say "${blue}name${white}: $name"
+say "${blue}crate${white}: $crate"
+say "${blue}package${white}: $package"
+say "${blue}version${white}: $version"
+say "${blue}commit${white}: $commit"
+say "${blue}platform${white}: $platform"
+say "${blue}release${white}: $release"
+say
+
+if [[ "$platform" == "unknown" ]]; then
+    sayerr "${red}Cannot build for unsupported platform: $platform"
+    exit 1
+fi
+
+readonly unstaged=$(git diff --exit-code)
+if [[ -n "$unstaged" ]]; then
+    sayerr "${yellow}WARNING!: There are uncommitted changes in this repo."
+fi
+
+readonly untracked_files=$(git ls-files --other --exclude-standard --directory)
+if [[ -n "$untracked_files" ]]; then
+    sayerr "${yellow}WARNING!: There are untracked files in this repo."
+fi
+
+say "${yellow}WARNING!: Not calling cargo clean for speed reasons." #cargo clean -p $crate --release
+
+say
+say "${blue}Compiling${white}:"
+cargo build --release --bin $crate
+
+say
+say "${blue}Packaging game for $platform${white}:"
+if [[ "$platform" == "macOS" ]]; then
+    readonly plist_content="<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">
+<plist version=\"1.0\">
+<dict>
+        <key>CFBundleName</key><string>$name</string>
+        <key>CFBundleExecutable</key><string>$name</string>
+        <key>CFBundleIdentifier</key><string>$package</string>
+        <key>CFBundleIconFile</key><string>Icon</string>
+        <key>CFBundlePackageType</key><string>APPL</string>
+        <key>CFBundleShortVersionString</key><string>$version</string>
+        <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
+</dict>
+</plist>"
+
+    readonly app_dir=$output_dir/$name.app
+    readonly plist_file=$app_dir/Contents/Info.plist
+    readonly exe_dir=$app_dir/Contents/MacOS
+    readonly res_dir=$app_dir/Contents/Resources
+    rm -rf $app_dir
+    mkdir -p $exe_dir
+    mkdir -p $res_dir
+
+    say "${blue}app${white}: $app_dir"
+    cp ./target/release/$crate $exe_dir/$name
+    chmod +x $exe_dir/$name
+
+    say
+    say "${blue}Generating playlist${white}:"
+    echo "$plist_content" > $plist_file
+    say "Done"
+
+    say
+    say "${blue}Generating icons${white}:"
+    readonly tmp_icons=/tmp/${name}.iconset
+    readonly src_icon=./dev_assets/icons/icon_1024px_trans.png
+    mkdir $tmp_icons
+    sips -z 16 16     $src_icon --out $tmp_icons/icon_16x16.png
+    sips -z 32 32     $src_icon --out $tmp_icons/icon_16x16@2x.png
+    sips -z 32 32     $src_icon --out $tmp_icons/icon_32x32.png
+    sips -z 64 64     $src_icon --out $tmp_icons/icon_32x32@2x.png
+    sips -z 128 128   $src_icon --out $tmp_icons/icon_128x128.png
+    sips -z 256 256   $src_icon --out $tmp_icons/icon_128x128@2x.png
+    sips -z 256 256   $src_icon --out $tmp_icons/icon_256x256.png
+    sips -z 512 512   $src_icon --out $tmp_icons/icon_256x256@2x.png
+    sips -z 512 512   $src_icon --out $tmp_icons/icon_512x512.png
+    cp $src_icon $tmp_icons/icon_512x512@2x.png
+    iconutil -c icns $tmp_icons --output $res_dir/Icon.icns
+    rm -R $tmp_icons
+
+    say
+    say "${blue}Signing app${white}:"
+    readonly cert="Mac Developer: pir.harris"
+    say "${blue}cert${white}: $cert"
+    codesign -s "$cert" "$app_dir"
+
+    readonly zip_file=${release}.zip
+    say
+    say "${blue}Compressing to ./release_builds/$zip_file${white}:"
+
+    pushd ./release_builds > /dev/null
+    zip -r $zip_file $release
+    popd > /dev/null
+else
+    sayerr "${red}Cannot build for unsupported platform: $platform"
+    exit 1
+fi
+
+say
+say "${green}Completed release build version $version!"
+say "${red}Don't forget to git tag and bump version in Cargo.toml!"
+
