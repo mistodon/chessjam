@@ -8,8 +8,9 @@ selected = [1.0, 1.0, 0.5, 0.75]
 dest = [0.0, 1.0, 1.0, 0.75]
 
 [camera]
-height = 8.0
-distance = 8.0
+distance = 11.31371
+angle = 0.0
+tilt = 45.0
 fov = 0.125
 
 [light]
