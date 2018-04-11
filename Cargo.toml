@@ -20,6 +20,10 @@ wavefront_obj = "=5.1.0"
 [dependencies.adequate_math]
 git = "https://github.com/mistodon/adequate_math"
 
+[dependencies.glium_text]
+git = "https://github.com/mistodon/glium_text"
+branch = "chessjam"
+
 [dependencies.pleco]
 git = "https://github.com/mistodon/pleco"
 branch = "chessjam"

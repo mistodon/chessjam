@@ -1,6 +1,7 @@
 extern crate config_struct;
 
 fn main() {
+    println!("cargo:rerun-if-changed=assets/config.toml");
     println!("cargo:rerun-if-changed=src");
 
     let toml_config = config_struct::toml_parsing::parse_config_from_file(

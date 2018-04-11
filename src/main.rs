@@ -8,6 +8,7 @@ extern crate static_assets;
 extern crate glium;
 
 extern crate adequate_math;
+extern crate glium_text;
 extern crate pleco;
 extern crate wavefront_obj;
 
@@ -15,8 +16,8 @@ mod graphics;
 mod input;
 
 use adequate_math::*;
-use glium::Display;
 use glium::glutin::EventsLoop;
+use glium::Display;
 
 use input::*;
 
@@ -75,6 +76,8 @@ fn main() {
 
 #[allow(cyclomatic_complexity)]
 fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
+    use glium_text::{FontTexture, TextDisplay, TextSystem};
+    use std::io::Cursor;
     use std::time::Instant;
 
     let config = chessjam::config::load_config();
@@ -123,6 +126,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         display,
         asset_str!("assets/meshes/knight.obj").as_ref(),
     );
+
+    let text_system = TextSystem::new(display);
+    let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
+    let font_texture =
+        FontTexture::new(display, font, config.text.size as u32).unwrap();
 
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
@@ -297,7 +305,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         let mut camera_motion = vec2(0.0, 0.0);
 
         {
-            use glium::glutin::{ElementState, Event, MouseScrollDelta, WindowEvent};
+            use glium::glutin::{
+                ElementState, Event, MouseScrollDelta, WindowEvent,
+            };
 
             let mut keyboard = keyboard.begin_frame_input();
             let mut mouse = mouse.begin_frame_input();
@@ -521,9 +531,21 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
         // render
         {
+            let whos_turn_label = TextDisplay::new(
+                &text_system,
+                &font_texture,
+                &format!("{:?}", whos_turn),
+            );
+
             use glium::{
-                BackfaceCullingMode, Blend, Depth, DepthTest, DrawParameters, Rect,
-                Surface, draw_parameters::{Stencil, StencilOperation, StencilTest},
+                draw_parameters::{Stencil, StencilOperation, StencilTest},
+                BackfaceCullingMode,
+                Blend,
+                Depth,
+                DepthTest,
+                DrawParameters,
+                Rect,
+                Surface,
             };
             use graphics::Mesh;
 
@@ -808,6 +830,26 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         .unwrap();
                 }
             }
+
+            let text_scale = Mat4::scale(
+                vec4(2.0, 2.0, 1.0, 1.0)
+                    / Vec4::from_slice(&config.text.viewport).as_f32(),
+            );
+            let label_scale = (config.text.turnlabel.size / config.text.size as f64) as f32;
+            let label_scale = Mat4::scale(vec4(label_scale, label_scale, 1.0, 1.0));
+
+            let label_transform = text_scale
+                * Mat4::translation(
+                    Vec3::from_slice(&config.text.turnlabel.pos).as_f32(),
+                ) * label_scale;
+
+            glium_text::draw(
+                &whos_turn_label,
+                &text_system,
+                &mut frame,
+                label_transform.0,
+                (1.0, 1.0, 1.0, 1.0),
+            );
 
             frame.finish().unwrap();
         }
