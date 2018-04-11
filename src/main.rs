@@ -531,12 +531,6 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
         // render
         {
-            let whos_turn_label = TextDisplay::new(
-                &text_system,
-                &font_texture,
-                &format!("{:?}", whos_turn),
-            );
-
             use glium::{
                 draw_parameters::{Stencil, StencilOperation, StencilTest},
                 BackfaceCullingMode,
@@ -835,6 +829,13 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 vec4(2.0, 2.0, 1.0, 1.0)
                     / Vec4::from_slice(&config.text.viewport).as_f32(),
             );
+
+            let whos_turn_label = TextDisplay::new(
+                &text_system,
+                &font_texture,
+                &format!("{:?}", whos_turn),
+            );
+
             let label_scale = (config.text.turnlabel.size / config.text.size as f64) as f32;
             let label_scale = Mat4::scale(vec4(label_scale, label_scale, 1.0, 1.0));
 
@@ -849,6 +850,22 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 &mut frame,
                 label_transform.0,
                 (1.0, 1.0, 1.0, 1.0),
+            );
+
+            let fps_label = TextDisplay::new(
+                &text_system,
+                &font_texture,
+                &format!("FPS {}", (1.0 / dt).round()));
+
+            let label_scale = Mat4::scale(vec4(0.1, 0.1, 1.0, 1.0));
+            let label_transform = text_scale * Mat4::translation(vec3(7.5, -4.0, 0.0)) * label_scale;
+
+            glium_text::draw(
+                &fps_label,
+                &text_system,
+                &mut frame,
+                label_transform.0,
+                (1.0, 1.0, 0.95, 1.0),
             );
 
             frame.finish().unwrap();
