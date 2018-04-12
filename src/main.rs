@@ -21,6 +21,7 @@ use adequate_math::*;
 use glium::glutin::EventsLoop;
 use glium::Display;
 
+use chessjam::config::Config;
 use input::*;
 
 
@@ -62,10 +63,13 @@ fn stopclock(title: &str, last_tick: &mut Instant, buffer: &mut String) {
 fn main() {
     use glium::glutin::{Api, ContextBuilder, GlProfile, GlRequest, WindowBuilder};
 
+    let config = chessjam::config::load_config();
+    let res = &config.graphics.resolution;
+
     let mut events_loop = EventsLoop::new();
 
     let window = WindowBuilder::new()
-        .with_dimensions(1280, 720)
+        .with_dimensions(res[0] as u32, res[1] as u32)
         .with_title("Purchess");
 
     let context = {
@@ -73,14 +77,14 @@ fn main() {
             .with_depth_buffer(24)
             .with_gl_profile(GlProfile::Core)
             .with_gl(GlRequest::Specific(Api::OpenGl, (4, 0)))
-            .with_vsync(true)
-            .with_multisampling(2)
+            .with_vsync(config.graphics.vsync)
+            .with_multisampling(config.graphics.multisampling as u16)
     };
 
     let display = &Display::new(window, context, &events_loop).unwrap();
 
     loop {
-        let rerun = run_game(display, &mut events_loop);
+        let rerun = run_game(display, &mut events_loop, &config);
 
         if !rerun {
             break;
@@ -90,11 +94,9 @@ fn main() {
 
 
 #[allow(cyclomatic_complexity)]
-fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
+fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) -> bool {
     use glium_text::{FontTexture, TextDisplay, TextSystem};
     use std::io::Cursor;
-
-    let config = chessjam::config::load_config();
 
     let model_shader = graphics::create_shader(
         display,
