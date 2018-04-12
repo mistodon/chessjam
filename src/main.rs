@@ -14,6 +14,7 @@ extern crate wavefront_obj;
 
 mod graphics;
 mod input;
+mod ui;
 
 use std::time::Instant;
 
@@ -22,8 +23,8 @@ use glium::glutin::EventsLoop;
 use glium::Display;
 
 use chessjam::config::Config;
-use input::*;
 use graphics::Mesh;
+use input::*;
 
 
 struct RenderCommand<'a> {
@@ -63,7 +64,7 @@ fn stopclock(title: &str, last_tick: &mut Instant, buffer: &mut String) {
     let now = Instant::now();
     let elapsed = now.duration_since(*last_tick);
     *last_tick = now;
-    let elapsed_millis = elapsed.subsec_nanos() as f64 / 1_000_000.0;
+    let elapsed_millis = f64::from(elapsed.subsec_nanos()) / 1_000_000.0;
     writeln!(buffer, "{}: {:.3}ms", title, elapsed_millis).unwrap();
 }
 
@@ -102,9 +103,14 @@ fn main() {
 
 
 #[allow(cyclomatic_complexity)]
-fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) -> bool {
-    use glium_text::{FontTexture, TextDisplay, TextSystem};
+fn run_game(
+    display: &Display,
+    events_loop: &mut EventsLoop,
+    config: &Config,
+) -> bool {
+    use glium_text::{FontTexture, TextSystem};
     use std::io::Cursor;
+    use ui::LabelRenderer;
 
     let model_shader = graphics::create_shader(
         display,
@@ -155,6 +161,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
     let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
     let font_texture =
         FontTexture::new(display, font, config.text.size as u32).unwrap();
+
+    let mut label_renderer = LabelRenderer::new();
 
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
@@ -595,7 +603,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
                     };
-                    let mvp_matrix = view_projection_matrix * Mat4::translation(position);
+                    let mvp_matrix =
+                        view_projection_matrix * Mat4::translation(position);
                     lit_render_buffer.push(RenderCommand {
                         mesh: &cube_mesh,
                         color,
@@ -628,7 +637,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
                 lit_render_buffer.push(RenderCommand {
                     mesh,
                     color,
-                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                    mvp_matrix: view_projection_matrix
+                        * Mat4::translation(position),
                 });
             }
 
@@ -641,7 +651,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
                     color: Vec4::from_slice(&config.colors.selected).as_f32(),
-                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                    mvp_matrix: view_projection_matrix
+                        * Mat4::translation(position),
                 });
             }
 
@@ -657,7 +668,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
                     color: Vec4::from_slice(&config.colors.dest).as_f32(),
-                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                    mvp_matrix: view_projection_matrix
+                        * Mat4::translation(position),
                 });
             }
 
@@ -793,7 +805,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
             // Render objects fully lit outside shadow volumes
             for command in &lit_render_buffer {
                 let normal_matrix = Mat3::<f32>::identity();
-                let specular_color = Vec3::from_slice(&config.light.specular_color).as_f32();
+                let specular_color =
+                    Vec3::from_slice(&config.light.specular_color).as_f32();
 
                 let fully_lit_draw_params = DrawParameters {
                     depth: Depth {
@@ -870,69 +883,56 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
 
             stopclock("highlight-pass", timer, timesheet);
 
+            label_renderer.clear();
+
+            label_renderer.add_label(
+                &format!("{:?}", whos_turn),
+                Vec3::from_slice(&config.text.turnlabel.pos).as_f32(),
+                (config.text.turnlabel.size / config.text.size as f64) as f32,
+                &text_system,
+                &font_texture,
+            );
+
+            label_renderer.add_label(
+                &format!("FPS {}", (1.0 / dt).round()),
+                vec3(7.5, -4.0, 0.0),
+                0.1,
+                &text_system,
+                &font_texture,
+            );
+
+            for (i, line) in timesheet.lines().enumerate() {
+                let y = 4.0 - 0.2 * i as f32;
+                label_renderer.add_label(
+                    line,
+                    vec3(-7.9, y, 0.0),
+                    0.1,
+                    &text_system,
+                    &font_texture,
+                );
+            }
+
+            timesheet.clear();
+
+
+            // TODO(claire): This only works if window is not resized.
             let text_scale = Mat4::scale(
                 vec4(2.0, 2.0, 1.0, 1.0)
                     / Vec4::from_slice(&config.text.viewport).as_f32(),
             );
 
-            let whos_turn_label = TextDisplay::new(
-                &text_system,
-                &font_texture,
-                &format!("{:?}", whos_turn),
-            );
-
-            let label_scale = (config.text.turnlabel.size / config.text.size as f64) as f32;
-            let label_scale = Mat4::scale(vec4(label_scale, label_scale, 1.0, 1.0));
-
-            let label_transform = text_scale
-                * Mat4::translation(
-                    Vec3::from_slice(&config.text.turnlabel.pos).as_f32(),
-                ) * label_scale;
-
-            glium_text::draw(
-                &whos_turn_label,
-                &text_system,
-                &mut frame,
-                label_transform.0,
-                (1.0, 1.0, 1.0, 1.0),
-            );
-
-            let fps_label = TextDisplay::new(
-                &text_system,
-                &font_texture,
-                &format!("FPS {}", (1.0 / dt).round()));
-
-            let label_scale = Mat4::scale(vec4(0.1, 0.1, 1.0, 1.0));
-            let label_transform = text_scale * Mat4::translation(vec3(7.5, -4.0, 0.0)) * label_scale;
-
-            glium_text::draw(
-                &fps_label,
-                &text_system,
-                &mut frame,
-                label_transform.0,
-                (1.0, 1.0, 0.95, 1.0),
-            );
-
-            for (i, line) in timesheet.lines().enumerate() {
-                let timesheet_label = TextDisplay::new(
-                    &text_system,
-                    &font_texture,
-                    line);
-
-                let label_scale = Mat4::scale(vec4(0.1, 0.1, 1.0, 1.0));
-                let y = 4.0 - 0.2 * i as f32;
-                let label_transform = text_scale * Mat4::translation(vec3(-7.9, y, 0.0)) * label_scale;
-
+            for &(ref label, pos, scale) in label_renderer.labels() {
+                let scale = Mat4::scale(vec4(scale, scale, 1.0, 1.0));
+                let label_transform = text_scale * Mat4::translation(pos) * scale;
                 glium_text::draw(
-                    &timesheet_label,
+                    &label,
                     &text_system,
                     &mut frame,
                     label_transform.0,
-                    (1.0, 1.0, 0.95, 1.0),
-                    );
+                    (1.0, 1.0, 1.0, 1.0),
+                );
             }
 
-            timesheet.clear();
 
             stopclock("text-pass", timer, timesheet);
 
