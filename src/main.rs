@@ -803,26 +803,26 @@ fn run_game(
 
 
             // Render objects fully lit outside shadow volumes
+            let fully_lit_draw_params = DrawParameters {
+                depth: Depth {
+                    test: DepthTest::IfLessOrEqual,
+                    write: false,
+                    ..Default::default()
+                },
+                stencil: Stencil {
+                    test_counter_clockwise: StencilTest::IfEqual { mask: !0 },
+                    reference_value_counter_clockwise: 0,
+                    ..Default::default()
+                },
+                backface_culling: BackfaceCullingMode::CullClockwise,
+                viewport: Some(viewport),
+                ..Default::default()
+            };
+
             for command in &lit_render_buffer {
                 let normal_matrix = Mat3::<f32>::identity();
                 let specular_color =
                     Vec3::from_slice(&config.light.specular_color).as_f32();
-
-                let fully_lit_draw_params = DrawParameters {
-                    depth: Depth {
-                        test: DepthTest::IfLessOrEqual,
-                        write: false,
-                        ..Default::default()
-                    },
-                    stencil: Stencil {
-                        test_counter_clockwise: StencilTest::IfEqual { mask: !0 },
-                        reference_value_counter_clockwise: 0,
-                        ..Default::default()
-                    },
-                    backface_culling: BackfaceCullingMode::CullClockwise,
-                    viewport: Some(viewport),
-                    ..Default::default()
-                };
 
                 frame
                     .draw(
