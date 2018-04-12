@@ -15,6 +15,8 @@ extern crate wavefront_obj;
 mod graphics;
 mod input;
 
+use std::time::Instant;
+
 use adequate_math::*;
 use glium::glutin::EventsLoop;
 use glium::Display;
@@ -46,6 +48,17 @@ pub enum PieceType {
 }
 
 
+fn stopclock(title: &str, last_tick: &mut Instant, buffer: &mut String) {
+    use std::fmt::Write;
+
+    let now = Instant::now();
+    let elapsed = now.duration_since(*last_tick);
+    *last_tick = now;
+    let elapsed_millis = elapsed.subsec_nanos() as f64 / 1_000_000.0;
+    writeln!(buffer, "{}: {:.3}ms", title, elapsed_millis).unwrap();
+}
+
+
 fn main() {
     use glium::glutin::{Api, ContextBuilder, GlProfile, GlRequest, WindowBuilder};
 
@@ -55,12 +68,14 @@ fn main() {
         .with_dimensions(1280, 720)
         .with_title("Purchess");
 
-    let context = ContextBuilder::new()
-        .with_depth_buffer(24)
-        .with_gl_profile(GlProfile::Core)
-        .with_gl(GlRequest::Specific(Api::OpenGl, (4, 0)))
-        .with_vsync(true)
-        .with_multisampling(4);
+    let context = {
+        ContextBuilder::new()
+            .with_depth_buffer(24)
+            .with_gl_profile(GlProfile::Core)
+            .with_gl(GlRequest::Specific(Api::OpenGl, (4, 0)))
+            .with_vsync(true)
+            .with_multisampling(2)
+    };
 
     let display = &Display::new(window, context, &events_loop).unwrap();
 
@@ -78,7 +93,6 @@ fn main() {
 fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     use glium_text::{FontTexture, TextDisplay, TextSystem};
     use std::io::Cursor;
-    use std::time::Instant;
 
     let config = chessjam::config::load_config();
 
@@ -296,9 +310,17 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
     let mut whos_turn = ChessColor::White;
 
+    // Profiling
+    let mut timer = Instant::now();
+    let mut timesheet = String::new();
+
     loop {
         let (dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
+        let timer = &mut timer;
+        let timesheet = &mut timesheet;
+
+        stopclock("between-frames", timer, timesheet);
 
         // handle_events
         let mut closed = false;
@@ -354,6 +376,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             });
         }
 
+        stopclock("inputs", timer, timesheet);
+
         if closed || keyboard.pressed(Key::Escape) {
             return false;
         }
@@ -406,6 +430,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             chessjam::world_to_grid(hit)
         };
 
+        stopclock("pre-update", timer, timesheet);
 
         // update
         {
@@ -530,6 +555,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             }
         }
 
+        stopclock("update", timer, timesheet);
+
         // render
         {
             use glium::{
@@ -627,6 +654,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 });
             }
 
+            stopclock("buffers", timer, timesheet);
+
 
             let mut frame = display.draw();
             frame.clear_all_srgb((0.0, 0.0, 0.0, 1.0), 1.0, 0);
@@ -666,6 +695,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 ..Default::default()
             };
 
+            stopclock("pre-draw", timer, timesheet);
 
             // Render all objects as if in shadow
             for command in &lit_render_buffer {
@@ -691,6 +721,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     .unwrap();
             }
 
+            stopclock("dark-pass", timer, timesheet);
 
             let shadow_front_draw_params = DrawParameters {
                 depth: Depth {
@@ -748,7 +779,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         )
                         .unwrap();
                 }
+                stopclock("shadow-pass", timer, timesheet);
             }
+
 
             // Render objects fully lit outside shadow volumes
             for command in &lit_render_buffer {
@@ -791,6 +824,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     .unwrap();
             }
 
+            stopclock("light-pass", timer, timesheet);
+
             // Render highlights
             {
                 let highlight_draw_params = DrawParameters {
@@ -825,6 +860,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         .unwrap();
                 }
             }
+
+            stopclock("highlight-pass", timer, timesheet);
 
             let text_scale = Mat4::scale(
                 vec4(2.0, 2.0, 1.0, 1.0)
@@ -869,7 +906,33 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 (1.0, 1.0, 0.95, 1.0),
             );
 
+            for (i, line) in timesheet.lines().enumerate() {
+                let timesheet_label = TextDisplay::new(
+                    &text_system,
+                    &font_texture,
+                    line);
+
+                let label_scale = Mat4::scale(vec4(0.1, 0.1, 1.0, 1.0));
+                let y = 4.0 - 0.2 * i as f32;
+                let label_transform = text_scale * Mat4::translation(vec3(-7.9, y, 0.0)) * label_scale;
+
+                glium_text::draw(
+                    &timesheet_label,
+                    &text_system,
+                    &mut frame,
+                    label_transform.0,
+                    (1.0, 1.0, 0.95, 1.0),
+                    );
+            }
+
+            timesheet.clear();
+
+            stopclock("text-pass", timer, timesheet);
+
             frame.finish().unwrap();
+
+            stopclock("end-frame", timer, timesheet);
+
         }
     }
 }
