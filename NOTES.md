@@ -7,6 +7,7 @@ Notes
 3.  Volume shadows and self shadowing - particularly on curved surfaces - looks very weird.
 4.  Automation is a really good idea.
 5.  Profiling with Xcode works fairly well
+6.  Be careful about dropping buffers
 
 
 MVP

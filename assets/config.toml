@@ -1,5 +1,5 @@
 [graphics]
-multisampling = 2
+multisampling = 4
 resolution = [1280, 720]
 vsync = true
 
