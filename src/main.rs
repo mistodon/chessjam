@@ -59,8 +59,8 @@ fn main() {
         .with_depth_buffer(24)
         .with_gl_profile(GlProfile::Core)
         .with_gl(GlRequest::Specific(Api::OpenGl, (4, 0)))
-        .with_multisampling(4)
-        .with_vsync(true);
+        .with_vsync(true)
+        .with_multisampling(4);
 
     let display = &Display::new(window, context, &events_loop).unwrap();
 
@@ -406,6 +406,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             chessjam::world_to_grid(hit)
         };
 
+
         // update
         {
             fn piece_at(position: Vec2<i32>, pieces: &[Piece]) -> Option<usize> {
@@ -544,9 +545,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             use graphics::Mesh;
 
             struct RenderCommand<'a> {
-                position: Vec3<f32>,
                 mesh: &'a Mesh,
                 color: Vec4<f32>,
+                mvp_matrix: Mat4<f32>,
             }
 
             let mut lit_render_buffer = Vec::with_capacity(100);
@@ -560,10 +561,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
                     };
+                    let mvp_matrix = view_projection_matrix * Mat4::translation(position);
                     lit_render_buffer.push(RenderCommand {
-                        position,
                         mesh: &cube_mesh,
                         color,
+                        mvp_matrix,
                     });
                 }
             }
@@ -588,10 +590,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     PieceType::Knight => &knight_mesh,
                 };
 
+                let position = chessjam::grid_to_world(piece.position);
                 lit_render_buffer.push(RenderCommand {
-                    position: chessjam::grid_to_world(piece.position),
                     mesh,
                     color,
+                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
                 });
             }
 
@@ -600,24 +603,27 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             if let Some(index) = selected_piece_index {
                 let position = pieces[index].position;
+                let position = chessjam::grid_to_world(position) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
-                    position: chessjam::grid_to_world(position) + height_offset,
                     mesh: &cube_mesh,
                     color: Vec4::from_slice(&config.colors.selected).as_f32(),
+                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
                 });
             }
 
+            let position = chessjam::grid_to_world(tile_cursor) + height_offset;
             highlight_render_buffer.push(RenderCommand {
-                position: chessjam::grid_to_world(tile_cursor) + height_offset,
                 mesh: &cube_mesh,
                 color: Vec4::from_slice(&config.colors.cursor).as_f32(),
+                mvp_matrix: view_projection_matrix * Mat4::translation(position),
             });
 
             for &dest in &valid_destinations {
+                let position = chessjam::grid_to_world(dest) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
-                    position: chessjam::grid_to_world(dest) + height_offset,
                     mesh: &cube_mesh,
                     color: Vec4::from_slice(&config.colors.dest).as_f32(),
+                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
                 });
             }
 
@@ -663,9 +669,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             // Render all objects as if in shadow
             for command in &lit_render_buffer {
-                let model_matrix = Mat4::translation(command.position);
                 let normal_matrix = Mat3::<f32>::identity();
-                let mvp_matrix = view_projection_matrix * model_matrix;
 
                 frame
                     .draw(
@@ -673,7 +677,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         &command.mesh.indices,
                         &model_shader,
                         &uniform!{
-                            transform: mvp_matrix.0,
+                            transform: command.mvp_matrix.0,
                             normal_matrix: normal_matrix.0,
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: shadow_color_matrix.0,
@@ -726,8 +730,6 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 shadow_back_draw_params,
             ] {
                 for command in &lit_render_buffer {
-                    let model_matrix = Mat4::translation(command.position);
-                    let mvp_matrix = view_projection_matrix * model_matrix;
                     let model_space_shadow_direction = shadow_direction.retract();
 
 
@@ -737,7 +739,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             &command.mesh.shadow_indices,
                             &shadow_shader,
                             &uniform!{
-                                transform: mvp_matrix.0,
+                                transform: command.mvp_matrix.0,
                                 model_space_shadow_direction:
                                     model_space_shadow_direction.0,
                             },
@@ -749,9 +751,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             // Render objects fully lit outside shadow volumes
             for command in &lit_render_buffer {
-                let model_matrix = Mat4::translation(command.position);
                 let normal_matrix = Mat3::<f32>::identity();
-                let mvp_matrix = view_projection_matrix * model_matrix;
 
                 let fully_lit_draw_params = DrawParameters {
                     depth: Depth {
@@ -775,7 +775,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         &command.mesh.indices,
                         &model_shader,
                         &uniform!{
-                            transform: mvp_matrix.0,
+                            transform: command.mvp_matrix.0,
                             normal_matrix: normal_matrix.0,
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: light_color_matrix.0,
@@ -803,9 +803,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 };
 
                 for highlight in &highlight_render_buffer {
-                    let model_matrix = Mat4::translation(highlight.position);
                     let normal_matrix = Mat3::<f32>::identity();
-                    let mvp_matrix = view_projection_matrix * model_matrix;
 
                     frame
                         .draw(
@@ -813,7 +811,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             &highlight.mesh.indices,
                             &model_shader,
                             &uniform!{
-                                transform: mvp_matrix.0,
+                                transform: highlight.mvp_matrix.0,
                                 normal_matrix: normal_matrix.0,
                                 light_direction_matrix: light_direction_matrix.0,
                                 light_color_matrix: light_color_matrix.0,
