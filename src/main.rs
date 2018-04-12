@@ -684,6 +684,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             albedo: command.color.0,
                             view_vector: view_vector.0,
                             specular_power: config.light.specular_power as f32,
+                            specular_color: [0.0, 0.0, 0.0_f32],
                         },
                         &draw_params,
                     )
@@ -752,6 +753,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             // Render objects fully lit outside shadow volumes
             for command in &lit_render_buffer {
                 let normal_matrix = Mat3::<f32>::identity();
+                let specular_color = Vec3::from_slice(&config.light.specular_color).as_f32();
 
                 let fully_lit_draw_params = DrawParameters {
                     depth: Depth {
@@ -782,6 +784,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             albedo: command.color.0,
                             view_vector: view_vector.0,
                             specular_power: config.light.specular_power as f32,
+                            specular_color: specular_color.0,
                         },
                         &fully_lit_draw_params,
                     )

@@ -20,10 +20,11 @@ void main()
 uniform mat4 light_direction_matrix;
 uniform mat4 light_color_matrix;
 uniform vec4 albedo;
+uniform float specular_power;
+uniform vec3 specular_color;
 
 // TODO(***realname***): Use per-fragment view vector
 uniform vec3 view_vector;
-uniform float specular_power;
 
 in vec3 world_normal;
 out vec4 color;
@@ -42,8 +43,7 @@ void main()
     float h_dot_n = dot(h, world_normal);
     float eight_pi = 25.13274122872;
     float conservation = (specular_power + 8.0) / eight_pi;
-    float light_intensity = 0.4;
-    float light = pow(h_dot_n, specular_power) * conservation * light_intensity;
-    color += vec4(vec3(1.0, 1.0, 1.0) * light, 0.0);
+    float light = pow(h_dot_n, specular_power) * conservation;
+    color += vec4(specular_color * light, 0.0);
 }
 
