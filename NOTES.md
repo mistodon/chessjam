@@ -6,3 +6,39 @@ Notes
     -   Feature annotations/lack of feature annotations in particular.
 3.  Volume shadows and self shadowing - particularly on curved surfaces - looks very weird.
 4.  Automation is a really good idea.
+5.  Profiling with Xcode works fairly well
+
+
+MVP
+===
+
+## Gameplay
+[x] Basic chess rules
+[ ] Detect checkmate/stalemate and end game
+[ ] Allow selling chess pieces
+[ ] Allow buying some chess pieces
+[ ] AI for enemy player
+
+## Art
+[x] Basic 3D models for every piece
+[x] Usable UI
+
+## Sound
+[ ] Some simple music - anything at all as long as it's listenable
+
+## Screens
+[ ] Title screen
+[ ] Victory/defeat screen
+
+## Packaging
+[ ] macOS app
+[ ] Windows app
+
+## Later on...
+[ ] Sound effects
+[ ] Linux app
+[ ] 2-player support
+[ ] Better lighting model
+[ ] Do AI in separate thread
+[ ] More complex chessy things (castling, en-passant...)
+[ ] More interesting background
