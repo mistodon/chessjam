@@ -23,6 +23,14 @@ use glium::Display;
 
 use chessjam::config::Config;
 use input::*;
+use graphics::Mesh;
+
+
+struct RenderCommand<'a> {
+    mesh: &'a Mesh,
+    color: Vec4<f32>,
+    mvp_matrix: Mat4<f32>,
+}
 
 
 #[derive(Debug)]
@@ -312,6 +320,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
     let mut whos_turn = ChessColor::White;
 
+    let mut lit_render_buffer = Vec::new();
+    let mut highlight_render_buffer = Vec::new();
+
     // Profiling
     let mut timer = Instant::now();
     let mut timesheet = String::new();
@@ -408,6 +419,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
 
 
         let tile_cursor = {
+            // TODO(***realname***): This only works if you don't resize the window.
             let camera_forward = camera_direction.norm();
             let camera_right = vec3(0.0, 1.0, 0.0).cross(camera_forward).norm();
             let camera_up = camera_forward.cross(camera_right);
@@ -571,16 +583,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
                 Rect,
                 Surface,
             };
-            use graphics::Mesh;
 
-            struct RenderCommand<'a> {
-                mesh: &'a Mesh,
-                color: Vec4<f32>,
-                mvp_matrix: Mat4<f32>,
-            }
-
-            let mut lit_render_buffer = Vec::with_capacity(100);
-            let mut highlight_render_buffer = Vec::with_capacity(64);
+            lit_render_buffer.clear();
+            highlight_render_buffer.clear();
 
             // Add some chessboard squares
             for y in 0..8 {
@@ -934,7 +939,6 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, config: &Config) ->
             frame.finish().unwrap();
 
             stopclock("end-frame", timer, timesheet);
-
         }
     }
 }
