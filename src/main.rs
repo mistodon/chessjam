@@ -41,7 +41,7 @@ pub struct Piece {
     pub piece_type: PieceType,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ChessColor {
     Black,
     White,
@@ -227,6 +227,11 @@ fn run_game(
             .0,
     ]);
 
+    let sell_tile = Vec2::from_slice(&config.game.sell_tile).as_i32();
+    let buy_tiles = config.game.buy_tiles.iter()
+        .map(|slice| Vec2::from_slice(slice).as_i32())
+        .collect::<Vec<Vec2<i32>>>();
+
     let mut pieces = {
         let mut pieces = Vec::new();
         for x in 0..8 {
@@ -251,78 +256,12 @@ fn run_game(
             color: ChessColor::Black,
             piece_type: PieceType::King,
         });
-        pieces.push(Piece {
-            position: vec2(3, 0),
-            color: ChessColor::White,
-            piece_type: PieceType::Queen,
-        });
-        pieces.push(Piece {
-            position: vec2(3, 7),
-            color: ChessColor::Black,
-            piece_type: PieceType::Queen,
-        });
-        pieces.push(Piece {
-            position: vec2(2, 0),
-            color: ChessColor::White,
-            piece_type: PieceType::Bishop,
-        });
-        pieces.push(Piece {
-            position: vec2(5, 0),
-            color: ChessColor::White,
-            piece_type: PieceType::Bishop,
-        });
-        pieces.push(Piece {
-            position: vec2(2, 7),
-            color: ChessColor::Black,
-            piece_type: PieceType::Bishop,
-        });
-        pieces.push(Piece {
-            position: vec2(5, 7),
-            color: ChessColor::Black,
-            piece_type: PieceType::Bishop,
-        });
-        pieces.push(Piece {
-            position: vec2(1, 0),
-            color: ChessColor::White,
-            piece_type: PieceType::Knight,
-        });
-        pieces.push(Piece {
-            position: vec2(6, 0),
-            color: ChessColor::White,
-            piece_type: PieceType::Knight,
-        });
-        pieces.push(Piece {
-            position: vec2(1, 7),
-            color: ChessColor::Black,
-            piece_type: PieceType::Knight,
-        });
-        pieces.push(Piece {
-            position: vec2(6, 7),
-            color: ChessColor::Black,
-            piece_type: PieceType::Knight,
-        });
-        pieces.push(Piece {
-            position: vec2(0, 0),
-            color: ChessColor::White,
-            piece_type: PieceType::Rook,
-        });
-        pieces.push(Piece {
-            position: vec2(7, 0),
-            color: ChessColor::White,
-            piece_type: PieceType::Rook,
-        });
-        pieces.push(Piece {
-            position: vec2(0, 7),
-            color: ChessColor::Black,
-            piece_type: PieceType::Rook,
-        });
-        pieces.push(Piece {
-            position: vec2(7, 7),
-            color: ChessColor::Black,
-            piece_type: PieceType::Rook,
-        });
         pieces
     };
+
+    let mut pieces_for_sale = vec![PieceType::Bishop; 3];
+    let mut white_coins = 0;
+    let mut black_coins = 0;
 
     let mut selected_piece_index: Option<usize> = None;
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
@@ -485,6 +424,23 @@ fn run_game(
                                 pieces.swap_remove(index);
                             }
                         }
+                        else if tile_cursor == sell_tile {
+                            if pieces[index].color == whos_turn {
+                                let refund = match pieces[index].piece_type {
+                                    PieceType::Pawn => 2,
+                                    PieceType::Knight => 3,
+                                    PieceType::Rook => 4,
+                                    PieceType::Bishop => 5,
+                                    PieceType::Queen => 6,
+                                    PieceType::King => panic!("You really shouldn't sell your king."),
+                                };
+                                match whos_turn {
+                                    ChessColor::White => white_coins += refund,
+                                    ChessColor::Black => black_coins += refund,
+                                }
+                                pieces.swap_remove(index);
+                            }
+                        }
                         selected_piece_index = None;
                     }
                 }
@@ -613,7 +569,34 @@ fn run_game(
                 }
             }
 
+            // Sell square
+            let position = chessjam::grid_to_world(sell_tile);
+            lit_render_buffer.push(RenderCommand {
+                mesh: &cube_mesh,
+                color: vec4(0.5, 1.0, 0.5, 1.0),
+                mvp_matrix: view_projection_matrix * Mat4::translation(position),
+            });
+
+            // Buy squares
+            for &tile in &buy_tiles {
+                let position = chessjam::grid_to_world(tile);
+                lit_render_buffer.push(RenderCommand {
+                    mesh: &cube_mesh,
+                    color: vec4(0.5, 0.5, 0.25, 1.0),
+                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                });
+            }
+
             // Add some chess pieces
+            let mesh_for_piece = |piece_type| match piece_type {
+                PieceType::Pawn => &pawn_mesh,
+                PieceType::King => &king_mesh,
+                PieceType::Queen => &queen_mesh,
+                PieceType::Bishop => &bishop_mesh,
+                PieceType::Rook => &rook_mesh,
+                PieceType::Knight => &knight_mesh,
+            };
+
             for piece in &pieces {
                 let color = match piece.color {
                     ChessColor::Black => {
@@ -624,14 +607,7 @@ fn run_game(
                     }
                 };
 
-                let mesh = match piece.piece_type {
-                    PieceType::Pawn => &pawn_mesh,
-                    PieceType::King => &king_mesh,
-                    PieceType::Queen => &queen_mesh,
-                    PieceType::Bishop => &bishop_mesh,
-                    PieceType::Rook => &rook_mesh,
-                    PieceType::Knight => &knight_mesh,
-                };
+                let mesh = mesh_for_piece(piece.piece_type);
 
                 let position = chessjam::grid_to_world(piece.position);
                 lit_render_buffer.push(RenderCommand {
@@ -639,6 +615,16 @@ fn run_game(
                     color,
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
+                });
+            }
+
+            for (index, &tile) in buy_tiles.iter().enumerate() {
+                let position = chessjam::grid_to_world(tile);
+                let mesh = mesh_for_piece(*pieces_for_sale.get(index).unwrap());
+                let color = Vec4::from_slice(&config.colors.forsale).as_f32();
+                let mvp_matrix = view_projection_matrix * Mat4::translation(position);
+                lit_render_buffer.push(RenderCommand {
+                    mesh, color, mvp_matrix
                 });
             }
 
@@ -901,8 +887,25 @@ fn run_game(
                 &font_texture,
             );
 
+            label_renderer.add_label(
+                &format!("White's coins: {}", white_coins),
+                vec3(-7.0, 4.0, 0.0),
+                0.2,
+                &text_system,
+                &font_texture,
+            );
+
+            label_renderer.add_label(
+                &format!("Black's coins: {}", black_coins),
+                vec3(5.5, 4.0, 0.0),
+                0.2,
+                &text_system,
+                &font_texture,
+            );
+
+
             for (i, line) in timesheet.lines().enumerate() {
-                let y = 4.0 - 0.2 * i as f32;
+                let y = -0.2 * i as f32;
                 label_renderer.add_label(
                     line,
                     vec3(-7.9, y, 0.0),
