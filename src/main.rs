@@ -166,6 +166,7 @@ fn run_game(
         FontTexture::new(display, font, config.text.size as u32).unwrap();
 
     let mut label_renderer = LabelRenderer::new();
+    let mut world_label_renderer = LabelRenderer::new();
 
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
@@ -886,6 +887,7 @@ fn run_game(
             stopclock("highlight-pass", timer, timesheet);
 
             label_renderer.clear();
+            world_label_renderer.clear();
 
             label_renderer.add_label(
                 &format!("{:?}", whos_turn),
@@ -931,6 +933,16 @@ fn run_game(
                 );
             }
 
+            for &tile in &buy_tiles {
+                world_label_renderer.add_label(
+                    "$",
+                    chessjam::grid_to_world(tile) + vec3(0.0, 2.0, 0.0),
+                    0.05,
+                    &text_system,
+                    &font_texture,
+                    );
+            }
+
             timesheet.clear();
 
 
@@ -954,6 +966,22 @@ fn run_game(
                     &mut frame,
                     label_transform.0,
                     (1.0, 1.0, 1.0, 1.0),
+                );
+            }
+
+            let text_scale = Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
+
+            for &(ref label, pos, scale) in world_label_renderer.labels() {
+                let screen_pos = view_projection_matrix * pos.extend(1.0);
+                let screen_pos = (screen_pos / screen_pos.0[3]).retract();
+                let scale = Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
+                let label_transform = text_scale * Mat4::translation(screen_pos) * scale;
+                glium_text::draw(
+                    &label,
+                    &text_system,
+                    &mut frame,
+                    label_transform.0,
+                    (0.5, 1.0, 0.5, 1.0),
                 );
             }
 
