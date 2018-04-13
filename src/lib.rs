@@ -42,6 +42,19 @@ pub fn viewport_rect(
     (left, bottom, width, height)
 }
 
+pub fn viewport_stretch(
+    screen_dimensions: (u32, u32),
+    viewport_width: u32,
+    viewport_height: u32,
+) -> Vec2<f32> {
+    let (w, h) = screen_dimensions;
+
+    vec2(
+        w as f32 / viewport_width as f32,
+        h as f32 / viewport_height as f32,
+    )
+}
+
 pub fn world_to_grid(point: Vec3<f32>) -> Vec2<i32> {
     let (x, _, y) = point.as_tuple();
     (vec2(x, y) + vec2(3.5, 3.5))
