@@ -934,9 +934,14 @@ fn run_game(
             timesheet.clear();
 
 
-            // TODO(claire): This only works if window is not resized.
+            let (vx, vy) = chessjam::viewport_stretch(
+                display.get_framebuffer_dimensions(),
+                viewport.width,
+                viewport.height,
+                ).as_tuple();
+
             let text_scale = Mat4::scale(
-                vec4(2.0, 2.0, 1.0, 1.0)
+                vec4(2.0 / vx, 2.0 / vy, 1.0, 1.0)
                     / Vec4::from_slice(&config.text.viewport).as_f32(),
             );
 
