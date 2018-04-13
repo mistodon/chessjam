@@ -108,8 +108,11 @@ fn run_game(
     events_loop: &mut EventsLoop,
     config: &Config,
 ) -> bool {
-    use glium_text::{FontTexture, TextSystem};
     use std::io::Cursor;
+
+    use glium::Rect;
+    use glium_text::{FontTexture, TextSystem};
+
     use ui::LabelRenderer;
 
     let model_shader = graphics::create_shader(
@@ -228,7 +231,10 @@ fn run_game(
     ]);
 
     let sell_tile = Vec2::from_slice(&config.game.sell_tile).as_i32();
-    let buy_tiles = config.game.buy_tiles.iter()
+    let buy_tiles = config
+        .game
+        .buy_tiles
+        .iter()
         .map(|slice| Vec2::from_slice(slice).as_i32())
         .collect::<Vec<Vec2<i32>>>();
 
@@ -364,17 +370,35 @@ fn run_game(
 
         let view_projection_matrix = projection_matrix * view_matrix;
 
+        let viewport = {
+            let (left, bottom, width, height) = chessjam::viewport_rect(
+                display.get_framebuffer_dimensions(),
+                TARGET_ASPECT,
+            );
+            Rect {
+                left,
+                bottom,
+                width,
+                height,
+            }
+        };
+
 
         let tile_cursor = {
-            // TODO(***realname***): This only works if you don't resize the window.
             let camera_forward = camera_direction.norm();
             let camera_right = vec3(0.0, 1.0, 0.0).cross(camera_forward).norm();
             let camera_up = camera_forward.cross(camera_right);
 
             let (w, h) = display.get_framebuffer_dimensions();
             let mouse_pos = (Vec2(mouse.position()) / vec2(w, h).as_f64()).as_f32();
-            let (mx, my) =
-                ((mouse_pos - vec2(0.5, 0.5)) * vec2(2.0, -2.0)).as_tuple();
+            let screen_pos = (mouse_pos - vec2(0.5, 0.5)) * vec2(2.0, -2.0);
+            let viewport_pos = screen_pos
+                * chessjam::viewport_stretch(
+                    (w, h),
+                    viewport.width,
+                    viewport.height,
+                );
+            let (mx, my) = viewport_pos.as_tuple();
             let near_plane_half_height =
                 (camera_fov / 2.0).tan() * CAMERA_NEAR_PLANE;
             let near_plane_half_width = near_plane_half_height * TARGET_ASPECT;
@@ -432,7 +456,9 @@ fn run_game(
                                     PieceType::Rook => 4,
                                     PieceType::Bishop => 5,
                                     PieceType::Queen => 6,
-                                    PieceType::King => panic!("You really shouldn't sell your king."),
+                                    PieceType::King => panic!(
+                                        "You really shouldn't sell your king."
+                                    ),
                                 };
                                 match whos_turn {
                                     ChessColor::White => white_coins += refund,
@@ -544,7 +570,6 @@ fn run_game(
                 Depth,
                 DepthTest,
                 DrawParameters,
-                Rect,
                 Surface,
             };
 
@@ -583,7 +608,8 @@ fn run_game(
                 lit_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
                     color: vec4(0.5, 0.5, 0.25, 1.0),
-                    mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                    mvp_matrix: view_projection_matrix
+                        * Mat4::translation(position),
                 });
             }
 
@@ -622,9 +648,12 @@ fn run_game(
                 let position = chessjam::grid_to_world(tile);
                 let mesh = mesh_for_piece(*pieces_for_sale.get(index).unwrap());
                 let color = Vec4::from_slice(&config.colors.forsale).as_f32();
-                let mvp_matrix = view_projection_matrix * Mat4::translation(position);
+                let mvp_matrix =
+                    view_projection_matrix * Mat4::translation(position);
                 lit_render_buffer.push(RenderCommand {
-                    mesh, color, mvp_matrix
+                    mesh,
+                    color,
+                    mvp_matrix,
                 });
             }
 
@@ -664,19 +693,6 @@ fn run_game(
 
             let mut frame = display.draw();
             frame.clear_all_srgb((0.0, 0.0, 0.0, 1.0), 1.0, 0);
-
-            let viewport = {
-                let (left, bottom, width, height) = chessjam::viewport_rect(
-                    display.get_framebuffer_dimensions(),
-                    TARGET_ASPECT,
-                );
-                Rect {
-                    left,
-                    bottom,
-                    width,
-                    height,
-                }
-            };
 
             let clear_color = Vec4::from_slice(&config.colors.sky)
                 .as_f32()
