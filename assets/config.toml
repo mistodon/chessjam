@@ -44,7 +44,7 @@ fill_color = [0.4, 0.4, 0.4, 1.0]
 back_color = [0.2, 0.2, 0.2, 1.0]
 amb_color = [0.1, 0.1, 0.1, 1.0]
 specular_power = 20.0
-specular_color = [0.4, 0.4, 0.4]
+specular_color = [0.1, 0.1, 0.1]
 
 
 [shadow]
