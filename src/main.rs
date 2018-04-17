@@ -39,6 +39,7 @@ pub struct Piece {
     pub position: Vec2<i32>,
     pub color: ChessColor,
     pub piece_type: PieceType,
+    pub moved: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -47,7 +48,7 @@ pub enum ChessColor {
     White,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum PieceType {
     Pawn,
     Knight,
@@ -57,11 +58,62 @@ pub enum PieceType {
     King,
 }
 
+#[derive(Debug, Default)]
+pub struct PiecePrice {
+    pub buy_price: u32,
+    pub discount_price: u32,
+    pub sell_price: u32,
+    pub unmoved_sell_price: u32,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum ControlState {
     Idle,
     SelectedPieceIndex(usize),
     SelectedPurchaseIndex(usize),
+}
+
+
+fn piece_price(piece_type: PieceType) -> &'static PiecePrice {
+    const PAWN: PiecePrice = PiecePrice {
+        buy_price: 4,
+        discount_price: 3,
+        sell_price: 2,
+        unmoved_sell_price: 4,
+    };
+    const KNIGHT: PiecePrice = PiecePrice {
+        buy_price: 5,
+        discount_price: 3,
+        sell_price: 3,
+        unmoved_sell_price: 3,
+    };
+    const ROOK: PiecePrice = PiecePrice {
+        buy_price: 6,
+        discount_price: 4,
+        sell_price: 3,
+        unmoved_sell_price: 3,
+    };
+    const BISHOP: PiecePrice = PiecePrice {
+        buy_price: 7,
+        discount_price: 5,
+        sell_price: 4,
+        unmoved_sell_price: 4,
+    };
+    const QUEEN: PiecePrice = PiecePrice {
+        buy_price: 9,
+        discount_price: 6,
+        sell_price: 5,
+        unmoved_sell_price: 5,
+    };
+
+    match piece_type {
+        PieceType::Pawn => &PAWN,
+        PieceType::Knight => &KNIGHT,
+        PieceType::Rook => &ROOK,
+        PieceType::Bishop => &BISHOP,
+        PieceType::Queen => &QUEEN,
+        PieceType::King => unreachable!("Do not buy or sell kings!")
+    }
 }
 
 
@@ -253,22 +305,26 @@ fn run_game(
                 position: vec2(x, 1),
                 color: ChessColor::White,
                 piece_type: PieceType::Pawn,
+                moved: false,
             });
             pieces.push(Piece {
                 position: vec2(x, 6),
                 color: ChessColor::Black,
                 piece_type: PieceType::Pawn,
+                moved: false,
             });
         }
         pieces.push(Piece {
             position: vec2(4, 0),
             color: ChessColor::White,
             piece_type: PieceType::King,
+            moved: false,
         });
         pieces.push(Piece {
             position: vec2(4, 7),
             color: ChessColor::Black,
             piece_type: PieceType::King,
+            moved: false,
         });
         pieces
     };
@@ -454,6 +510,8 @@ fn run_game(
                         if valid_destinations.contains(&tile_cursor) {
                             let taken_piece = piece_at(tile_cursor, &pieces);
                             pieces[index].position = tile_cursor;
+                            pieces[index].moved = true;
+
                             whos_turn = match whos_turn {
                                 ChessColor::White => ChessColor::Black,
                                 ChessColor::Black => ChessColor::White,
@@ -465,34 +523,40 @@ fn run_game(
                             }
                         }
                         else if tile_cursor == sell_tile {
-                            if pieces[index].color == whos_turn {
-                                let refund = match pieces[index].piece_type {
-                                    PieceType::Pawn => 2,
-                                    PieceType::Knight => 3,
-                                    PieceType::Rook => 4,
-                                    PieceType::Bishop => 5,
-                                    PieceType::Queen => 6,
-                                    PieceType::King => panic!(
-                                        "You really shouldn't sell your king."
-                                        ),
-                                };
-                                match whos_turn {
-                                    ChessColor::White => white_coins += refund,
-                                    ChessColor::Black => black_coins += refund,
+                            if pieces[index].piece_type != PieceType::King {
+                                if pieces[index].color == whos_turn {
+                                    let prices = piece_price(pieces[index].piece_type);
+                                    let refund = if pieces[index].moved { prices.sell_price } else { prices.unmoved_sell_price };
+
+                                    match whos_turn {
+                                        ChessColor::White => white_coins += refund,
+                                        ChessColor::Black => black_coins += refund,
+                                    }
+                                    pieces.swap_remove(index);
                                 }
-                                pieces.swap_remove(index);
                             }
                         }
                         control_state = ControlState::Idle;
                     }
                     ControlState::SelectedPurchaseIndex(index) => {
                         if piece_at(tile_cursor, &pieces).is_none() && chessjam::valid_square(tile_cursor) {
-                            pieces.push(Piece {
-                                position: tile_cursor,
-                                color: whos_turn,
-                                piece_type: pieces_for_sale[index],
-                            });
-                            pieces_for_sale[index] = PieceType::Rook;
+                            let piece_type = pieces_for_sale[index];
+                            let price = piece_price(piece_type).buy_price;
+
+                            let wallet = match whos_turn {
+                                ChessColor::White => &mut white_coins,
+                                ChessColor::Black => &mut black_coins,
+                            };
+                            if price <= *wallet {
+                                *wallet -= price;
+                                pieces.push(Piece {
+                                    position: tile_cursor,
+                                    color: whos_turn,
+                                    piece_type,
+                                    moved: false,
+                                });
+                                pieces_for_sale[index] = PieceType::Rook;
+                            }
                             control_state = ControlState::Idle;
                         }
                     }
@@ -959,9 +1023,12 @@ fn run_game(
                 );
             }
 
-            for &tile in &buy_tiles {
+            for (index, &tile) in buy_tiles.iter().enumerate() {
+                let piece_for_sale = pieces_for_sale[index];
+                let price = piece_price(piece_for_sale).buy_price;
+
                 world_label_renderer.add_label(
-                    "$",
+                    &format!("${}", price),
                     chessjam::grid_to_world(tile) + vec3(0.0, 2.0, 0.0),
                     0.05,
                     &text_system,
