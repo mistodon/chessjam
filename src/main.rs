@@ -57,6 +57,13 @@ pub enum PieceType {
     King,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum ControlState {
+    Idle,
+    SelectedPieceIndex(usize),
+    SelectedPurchaseIndex(usize),
+}
+
 
 fn stopclock(title: &str, last_tick: &mut Instant, buffer: &mut String) {
     use std::fmt::Write;
@@ -270,7 +277,7 @@ fn run_game(
     let mut white_coins = 0;
     let mut black_coins = 0;
 
-    let mut selected_piece_index: Option<usize> = None;
+    let mut control_state = ControlState::Idle;
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
     let mut whos_turn = ChessColor::White;
 
@@ -431,11 +438,19 @@ fn run_game(
             }
 
             if mouse.pressed(Button::Left) {
-                match selected_piece_index {
-                    None => {
-                        selected_piece_index = piece_at(tile_cursor, &pieces);
+                match control_state {
+                    ControlState::Idle => {
+                        for (index, &tile) in buy_tiles.iter().enumerate() {
+                            if tile == tile_cursor {
+                                control_state = ControlState::SelectedPurchaseIndex(index);
+                            }
+                        }
+                        control_state = match piece_at(tile_cursor, &pieces) {
+                            Some(index) => ControlState::SelectedPieceIndex(index),
+                            _ => control_state,
+                        };
                     }
-                    Some(index) => {
+                    ControlState::SelectedPieceIndex(index) => {
                         if valid_destinations.contains(&tile_cursor) {
                             let taken_piece = piece_at(tile_cursor, &pieces);
                             pieces[index].position = tile_cursor;
@@ -459,7 +474,7 @@ fn run_game(
                                     PieceType::Queen => 6,
                                     PieceType::King => panic!(
                                         "You really shouldn't sell your king."
-                                    ),
+                                        ),
                                 };
                                 match whos_turn {
                                     ChessColor::White => white_coins += refund,
@@ -468,13 +483,24 @@ fn run_game(
                                 pieces.swap_remove(index);
                             }
                         }
-                        selected_piece_index = None;
+                        control_state = ControlState::Idle;
+                    }
+                    ControlState::SelectedPurchaseIndex(index) => {
+                        if piece_at(tile_cursor, &pieces).is_none() && chessjam::valid_square(tile_cursor) {
+                            pieces.push(Piece {
+                                position: tile_cursor,
+                                color: whos_turn,
+                                piece_type: pieces_for_sale[index],
+                            });
+                            pieces_for_sale[index] = PieceType::Rook;
+                            control_state = ControlState::Idle;
+                        }
                     }
                 }
 
                 // Recalculate possible moves
                 valid_destinations.clear();
-                if let Some(index) = selected_piece_index {
+                if let ControlState::SelectedPieceIndex(index) = control_state {
                     use pleco::Board;
 
                     let piece = &pieces[index];
@@ -661,7 +687,7 @@ fn run_game(
             // Add tile highlights
             let height_offset = vec3(0.0, 0.2, 0.0);
 
-            if let Some(index) = selected_piece_index {
+            if let ControlState::SelectedPieceIndex(index) = control_state {
                 let position = pieces[index].position;
                 let position = chessjam::grid_to_world(position) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
