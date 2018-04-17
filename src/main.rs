@@ -22,7 +22,6 @@ use adequate_math::*;
 use glium::glutin::EventsLoop;
 use glium::Display;
 
-use chessjam::config::Config;
 use graphics::Mesh;
 use input::*;
 
@@ -152,7 +151,7 @@ fn main() {
     let display = &Display::new(window, context, &events_loop).unwrap();
 
     loop {
-        let rerun = run_game(display, &mut events_loop, &config);
+        let rerun = run_game(display, &mut events_loop);
 
         if !rerun {
             break;
@@ -165,7 +164,6 @@ fn main() {
 fn run_game(
     display: &Display,
     events_loop: &mut EventsLoop,
-    config: &Config,
 ) -> bool {
     use std::io::Cursor;
 
@@ -173,6 +171,8 @@ fn run_game(
     use glium_text::{FontTexture, TextSystem};
 
     use ui::LabelRenderer;
+
+    let config = chessjam::config::load_config();
 
     let model_shader = graphics::create_shader(
         display,
