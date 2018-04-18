@@ -329,7 +329,7 @@ fn run_game(
         pieces
     };
 
-    let mut pieces_for_sale = vec![PieceType::Bishop; 3];
+    let mut pieces_for_sale = [Some(PieceType::Bishop); 3];
     let mut white_coins = 0;
     let mut black_coins = 0;
 
@@ -541,22 +541,26 @@ fn run_game(
                     ControlState::SelectedPurchaseIndex(index) => {
                         if piece_at(tile_cursor, &pieces).is_none() && chessjam::valid_square(tile_cursor) {
                             let piece_type = pieces_for_sale[index];
-                            let price = piece_price(piece_type).buy_price;
 
-                            let wallet = match whos_turn {
-                                ChessColor::White => &mut white_coins,
-                                ChessColor::Black => &mut black_coins,
-                            };
-                            if price <= *wallet {
-                                *wallet -= price;
-                                pieces.push(Piece {
-                                    position: tile_cursor,
-                                    color: whos_turn,
-                                    piece_type,
-                                    moved: false,
-                                });
-                                pieces_for_sale[index] = PieceType::Rook;
+                            if let Some(piece_type) = piece_type {
+                                let price = piece_price(piece_type).buy_price;
+
+                                let wallet = match whos_turn {
+                                    ChessColor::White => &mut white_coins,
+                                    ChessColor::Black => &mut black_coins,
+                                };
+                                if price <= *wallet {
+                                    *wallet -= price;
+                                    pieces.push(Piece {
+                                        position: tile_cursor,
+                                        color: whos_turn,
+                                        piece_type,
+                                        moved: false,
+                                    });
+                                    pieces_for_sale[index] = None;
+                                }
                             }
+
                             control_state = ControlState::Idle;
                         }
                     }
@@ -736,16 +740,20 @@ fn run_game(
             }
 
             for (index, &tile) in buy_tiles.iter().enumerate() {
-                let position = chessjam::grid_to_world(tile);
-                let mesh = mesh_for_piece(*pieces_for_sale.get(index).unwrap());
-                let color = Vec4::from_slice(&config.colors.forsale).as_f32();
-                let mvp_matrix =
-                    view_projection_matrix * Mat4::translation(position);
-                lit_render_buffer.push(RenderCommand {
-                    mesh,
-                    color,
-                    mvp_matrix,
-                });
+                let piece_for_sale = pieces_for_sale[index];
+
+                if let Some(piece_for_sale) = piece_for_sale {
+                    let position = chessjam::grid_to_world(tile);
+                    let mesh = mesh_for_piece(piece_for_sale);
+                    let color = Vec4::from_slice(&config.colors.forsale).as_f32();
+                    let mvp_matrix =
+                        view_projection_matrix * Mat4::translation(position);
+                    lit_render_buffer.push(RenderCommand {
+                        mesh,
+                        color,
+                        mvp_matrix,
+                    });
+                }
             }
 
             // Add tile highlights
@@ -1025,15 +1033,18 @@ fn run_game(
 
             for (index, &tile) in buy_tiles.iter().enumerate() {
                 let piece_for_sale = pieces_for_sale[index];
-                let price = piece_price(piece_for_sale).buy_price;
 
-                world_label_renderer.add_label(
-                    &format!("${}", price),
-                    chessjam::grid_to_world(tile) + vec3(0.0, 2.0, 0.0),
-                    0.05,
-                    &text_system,
-                    &font_texture,
-                    );
+                if let Some(piece_for_sale) = piece_for_sale {
+                    let price = piece_price(piece_for_sale).buy_price;
+
+                    world_label_renderer.add_label(
+                        &format!("${}", price),
+                        chessjam::grid_to_world(tile) + vec3(0.0, 2.0, 0.0),
+                        0.05,
+                        &text_system,
+                        &font_texture,
+                        );
+                }
             }
 
             timesheet.clear();
