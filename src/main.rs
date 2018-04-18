@@ -10,6 +10,7 @@ extern crate glium;
 extern crate adequate_math;
 extern crate glium_text;
 extern crate pleco;
+extern crate rand;
 extern crate wavefront_obj;
 
 mod graphics;
@@ -113,6 +114,23 @@ fn piece_price(piece_type: PieceType) -> &'static PiecePrice {
         PieceType::Queen => &QUEEN,
         PieceType::King => unreachable!("Do not buy or sell kings!")
     }
+}
+
+
+fn random_piece() -> PieceType {
+    use rand::distributions::{Weighted, WeightedChoice, IndependentSample};
+
+    let mut choices = [
+        Weighted { weight: 24, item: PieceType::Pawn },
+        Weighted { weight: 20, item: PieceType::Knight },
+        Weighted { weight: 16, item: PieceType::Rook },
+        Weighted { weight: 14, item: PieceType::Bishop },
+        Weighted { weight: 10, item: PieceType::Queen },
+    ];
+    let wc = WeightedChoice::new(&mut choices);
+    let mut rng = rand::thread_rng();
+
+    wc.ind_sample(&mut rng)
 }
 
 
@@ -329,7 +347,11 @@ fn run_game(
         pieces
     };
 
-    let mut pieces_for_sale = [Some(PieceType::Bishop); 3];
+    let mut pieces_for_sale = [
+        Some(random_piece()),
+        Some(random_piece()),
+        Some(random_piece())];
+
     let mut white_coins = 0;
     let mut black_coins = 0;
 
@@ -512,10 +534,19 @@ fn run_game(
                             pieces[index].position = tile_cursor;
                             pieces[index].moved = true;
 
+                            // TODO(claire): Big game-flow stuff like this should
+                            // be done in a less nested scope.
                             whos_turn = match whos_turn {
                                 ChessColor::White => ChessColor::Black,
                                 ChessColor::Black => ChessColor::White,
                             };
+
+                            // Restock shop
+                            for piece in &mut pieces_for_sale {
+                                if piece.is_none() {
+                                    *piece = Some(random_piece());
+                                }
+                            }
 
                             // TODO(claire): When castling, this will do Bad Things.
                             if let Some(index) = taken_piece {
@@ -539,6 +570,7 @@ fn run_game(
                         control_state = ControlState::Idle;
                     }
                     ControlState::SelectedPurchaseIndex(index) => {
+                        // TODO(claire): Limit (and display) valid placements
                         if piece_at(tile_cursor, &pieces).is_none() && chessjam::valid_square(tile_cursor) {
                             let piece_type = pieces_for_sale[index];
 
@@ -560,9 +592,9 @@ fn run_game(
                                     pieces_for_sale[index] = None;
                                 }
                             }
-
-                            control_state = ControlState::Idle;
                         }
+
+                        control_state = ControlState::Idle;
                     }
                 }
 
