@@ -43,6 +43,6 @@ impl<'a> LabelRenderer<'a> {
     }
 
     pub fn labels(&self) -> &[(TextDisplay<&'a FontTexture>, Vec3<f32>, f32)] {
-        &self.labels
+        &self.labels[0..self.label_count]
     }
 }
