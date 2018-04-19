@@ -504,6 +504,8 @@ fn run_game(
 
         stopclock("pre-update", timer, timesheet);
 
+        let mut valid_purchase_placements = Vec::new();
+
         // update
         {
             fn piece_at(position: Vec2<i32>, pieces: &[Piece]) -> Option<usize> {
@@ -515,6 +517,29 @@ fn run_game(
                 }
                 result
             }
+
+            // valid_purchase_placements
+            {
+                if let ControlState::SelectedPurchaseIndex(index) = control_state {
+                    let piece_type = pieces_for_sale[index];
+
+                    if let Some(piece_type) = piece_type {
+                        let y = match (whos_turn, piece_type) {
+                            (ChessColor::White, PieceType::Pawn) => 1,
+                            (ChessColor::White, _) => 0,
+                            (ChessColor::Black, PieceType::Pawn) => 6,
+                            (ChessColor::Black, _) => 7,
+                        };
+
+                        for x in 0..8 {
+                            if piece_at(vec2(x, y), &pieces).is_none() {
+                                valid_purchase_placements.push(vec2(x, y));
+                            }
+                        }
+                    }
+                }
+            }
+
 
             if mouse.pressed(Button::Left) {
                 match control_state {
@@ -571,11 +596,10 @@ fn run_game(
                         control_state = ControlState::Idle;
                     }
                     ControlState::SelectedPurchaseIndex(index) => {
-                        // TODO(claire): Limit (and display) valid placements
-                        if piece_at(tile_cursor, &pieces).is_none() && chessjam::valid_square(tile_cursor) {
-                            let piece_type = pieces_for_sale[index];
+                        let piece_type = pieces_for_sale[index];
 
-                            if let Some(piece_type) = piece_type {
+                        if let Some(piece_type) = piece_type {
+                            if valid_purchase_placements.contains(&tile_cursor) {
                                 let price = piece_price(piece_type).buy_price;
 
                                 let wallet = match whos_turn {
@@ -792,8 +816,13 @@ fn run_game(
             // Add tile highlights
             let height_offset = vec3(0.0, 0.2, 0.0);
 
-            if let ControlState::SelectedPieceIndex(index) = control_state {
-                let position = pieces[index].position;
+            let selection_tile = match control_state {
+                ControlState::SelectedPieceIndex(index) => Some(pieces[index].position),
+                ControlState::SelectedPurchaseIndex(index) => Some(buy_tiles[index]),
+                ControlState::Idle => None
+            };
+
+            if let Some(position) = selection_tile {
                 let position = chessjam::grid_to_world(position) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
@@ -815,6 +844,16 @@ fn run_game(
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
                     color: Vec4::from_slice(&config.colors.dest).as_f32(),
+                    mvp_matrix: view_projection_matrix
+                        * Mat4::translation(position),
+                });
+            }
+
+            for &place in &valid_purchase_placements {
+                let position = chessjam::grid_to_world(place) + height_offset;
+                highlight_render_buffer.push(RenderCommand {
+                    mesh: &cube_mesh,
+                    color: Vec4::from_slice(&config.colors.place).as_f32(),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                 });
