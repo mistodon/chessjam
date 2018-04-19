@@ -46,6 +46,12 @@ amb_color = [0.1, 0.1, 0.1, 1.0]
 specular_power = 20.0
 specular_color = [0.1, 0.1, 0.1]
 
+[weights]
+pawn = 22
+knight = 18
+rook = 16
+bishop = 14
+queen = 10
 
 [shadow]
 key_color = [0.05, 0.05, 0.05, 1.0]
