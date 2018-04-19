@@ -117,6 +117,11 @@ fn piece_price(piece_type: PieceType) -> &'static PiecePrice {
     }
 }
 
+fn sell_price(piece_type: PieceType, moved: bool) -> u32 {
+    let price = piece_price(piece_type);
+    if moved { price.sell_price } else { price.unmoved_sell_price }
+}
+
 
 fn random_piece(config: &Config) -> PieceType {
     use rand::distributions::{Weighted, WeightedChoice, IndependentSample};
@@ -505,6 +510,7 @@ fn run_game(
         stopclock("pre-update", timer, timesheet);
 
         let mut valid_purchase_placements = Vec::new();
+        let mut can_sell = false;
 
         // update
         {
@@ -518,9 +524,11 @@ fn run_game(
                 result
             }
 
-            // valid_purchase_placements
-            {
-                if let ControlState::SelectedPurchaseIndex(index) = control_state {
+            match control_state {
+                ControlState::SelectedPieceIndex(index) => {
+                    can_sell = pieces[index].piece_type != PieceType::King;
+                }
+                ControlState::SelectedPurchaseIndex(index) => {
                     let piece_type = pieces_for_sale[index];
 
                     if let Some(piece_type) = piece_type {
@@ -538,6 +546,7 @@ fn run_game(
                         }
                     }
                 }
+                ControlState::Idle => ()
             }
 
 
@@ -579,18 +588,15 @@ fn run_game(
                                 pieces.swap_remove(index);
                             }
                         }
-                        else if tile_cursor == sell_tile {
-                            if pieces[index].piece_type != PieceType::King {
-                                if pieces[index].color == whos_turn {
-                                    let prices = piece_price(pieces[index].piece_type);
-                                    let refund = if pieces[index].moved { prices.sell_price } else { prices.unmoved_sell_price };
+                        else if tile_cursor == sell_tile && can_sell {
+                            if pieces[index].color == whos_turn {
+                                let refund = sell_price(pieces[index].piece_type, pieces[index].moved);
 
-                                    match whos_turn {
-                                        ChessColor::White => white_coins += refund,
-                                        ChessColor::Black => black_coins += refund,
-                                    }
-                                    pieces.swap_remove(index);
+                                match whos_turn {
+                                    ChessColor::White => white_coins += refund,
+                                    ChessColor::Black => black_coins += refund,
                                 }
+                                pieces.swap_remove(index);
                             }
                         }
                         control_state = ControlState::Idle;
@@ -841,6 +847,16 @@ fn run_game(
 
             for &dest in &valid_destinations {
                 let position = chessjam::grid_to_world(dest) + height_offset;
+                highlight_render_buffer.push(RenderCommand {
+                    mesh: &cube_mesh,
+                    color: Vec4::from_slice(&config.colors.dest).as_f32(),
+                    mvp_matrix: view_projection_matrix
+                        * Mat4::translation(position),
+                });
+            }
+
+            if can_sell {
+                let position = chessjam::grid_to_world(sell_tile) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
                     color: Vec4::from_slice(&config.colors.dest).as_f32(),
@@ -1112,6 +1128,21 @@ fn run_game(
                     world_label_renderer.add_label(
                         &format!("${}", price),
                         chessjam::grid_to_world(tile) + vec3(0.0, 2.0, 0.0),
+                        0.05,
+                        &text_system,
+                        &font_texture,
+                        );
+                }
+            }
+
+            if let ControlState::SelectedPieceIndex(index) = control_state {
+                if can_sell {
+                    let piece = &pieces[index];
+                    let refund = sell_price(piece.piece_type, piece.moved);
+
+                    world_label_renderer.add_label(
+                        &format!("+${}", refund),
+                        chessjam::grid_to_world(sell_tile) + vec3(0.0, 2.0, 0.0),
                         0.05,
                         &text_system,
                         &font_texture,
