@@ -1141,7 +1141,7 @@ fn run_game(
                     let refund = sell_price(piece.piece_type, piece.moved);
 
                     world_label_renderer.add_label(
-                        &format!("+${}", refund),
+                        &format!("+${} Sell?", refund),
                         chessjam::grid_to_world(sell_tile) + vec3(0.0, 2.0, 0.0),
                         0.05,
                         &text_system,
