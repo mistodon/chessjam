@@ -23,6 +23,7 @@ use adequate_math::*;
 use glium::glutin::EventsLoop;
 use glium::Display;
 
+use chessjam::config::Config;
 use graphics::Mesh;
 use input::*;
 
@@ -117,15 +118,15 @@ fn piece_price(piece_type: PieceType) -> &'static PiecePrice {
 }
 
 
-fn random_piece() -> PieceType {
+fn random_piece(config: &Config) -> PieceType {
     use rand::distributions::{Weighted, WeightedChoice, IndependentSample};
 
     let mut choices = [
-        Weighted { weight: 24, item: PieceType::Pawn },
-        Weighted { weight: 20, item: PieceType::Knight },
-        Weighted { weight: 16, item: PieceType::Rook },
-        Weighted { weight: 14, item: PieceType::Bishop },
-        Weighted { weight: 10, item: PieceType::Queen },
+        Weighted { weight: config.weights.pawn as u32, item: PieceType::Pawn },
+        Weighted { weight: config.weights.knight as u32, item: PieceType::Knight },
+        Weighted { weight: config.weights.rook as u32, item: PieceType::Rook },
+        Weighted { weight: config.weights.bishop as u32, item: PieceType::Bishop },
+        Weighted { weight: config.weights.queen as u32, item: PieceType::Queen },
     ];
     let wc = WeightedChoice::new(&mut choices);
     let mut rng = rand::thread_rng();
@@ -348,9 +349,9 @@ fn run_game(
     };
 
     let mut pieces_for_sale = [
-        Some(random_piece()),
-        Some(random_piece()),
-        Some(random_piece())];
+        Some(random_piece(&config)),
+        Some(random_piece(&config)),
+        Some(random_piece(&config))];
 
     let mut white_coins = 0;
     let mut black_coins = 0;
@@ -544,7 +545,7 @@ fn run_game(
                             // Restock shop
                             for piece in &mut pieces_for_sale {
                                 if piece.is_none() {
-                                    *piece = Some(random_piece());
+                                    *piece = Some(random_piece(&config));
                                 }
                             }
 
