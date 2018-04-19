@@ -43,3 +43,4 @@ MVP
 [ ] Do AI in separate thread
 [ ] More complex chessy things (castling, en-passant...)
 [ ] More interesting background
+[ ] Prettier UI
