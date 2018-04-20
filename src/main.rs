@@ -59,6 +59,13 @@ pub enum PieceType {
     King,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum GameOutcome {
+    Ongoing,
+    Stalemate,
+    Victory(ChessColor),
+}
+
 #[derive(Debug, Default)]
 pub struct PiecePrice {
     pub buy_price: u32,
@@ -148,6 +155,81 @@ fn stopclock(title: &str, last_tick: &mut Instant, buffer: &mut String) {
     *last_tick = now;
     let elapsed_millis = f64::from(elapsed.subsec_nanos()) / 1_000_000.0;
     writeln!(buffer, "{}: {:.3}ms", title, elapsed_millis).unwrap();
+}
+
+
+fn piece_at(position: Vec2<i32>, pieces: &[Piece]) -> Option<usize> {
+    let mut result = None;
+    for (index, piece) in pieces.iter().enumerate() {
+        if piece.position == position {
+            result = Some(index);
+        }
+    }
+    result
+}
+
+
+fn generate_fen(pieces: &[Piece], whos_turn: ChessColor) -> String {
+    use std::fmt::Write;
+
+    let mut buffer = String::with_capacity(128);
+    let mut empty_stretch = 0;
+
+    for y in 0..8 {
+        for x in 0..8 {
+            match piece_at(vec2(x, 7 - y).as_i32(), pieces) {
+                Some(index) => {
+                    use ChessColor::*;
+                    use PieceType::*;
+
+                    if empty_stretch > 0 {
+                        write!(buffer, "{}", empty_stretch)
+                            .unwrap();
+                        empty_stretch = 0;
+                    }
+
+                    let piece = &pieces[index];
+                    let ch =
+                        match (piece.color, piece.piece_type) {
+                            (White, Pawn) => "P",
+                            (White, King) => "K",
+                            (White, Queen) => "Q",
+                            (White, Bishop) => "B",
+                            (White, Rook) => "R",
+                            (White, Knight) => "N",
+                            (Black, Pawn) => "p",
+                            (Black, King) => "k",
+                            (Black, Queen) => "q",
+                            (Black, Bishop) => "b",
+                            (Black, Rook) => "r",
+                            (Black, Knight) => "n",
+                        };
+                    buffer.push_str(ch);
+                }
+                None => {
+                    empty_stretch += 1;
+                }
+            }
+        }
+
+        if empty_stretch > 0 {
+            write!(buffer, "{}", empty_stretch).unwrap();
+            empty_stretch = 0;
+        }
+
+        if y < 7 {
+            buffer.push_str("/");
+        }
+    }
+
+    match whos_turn {
+        ChessColor::White => buffer.push_str(" w "),
+        ChessColor::Black => buffer.push_str(" b "),
+    }
+
+    buffer.push_str("KQkq - 0 1");
+
+    buffer
 }
 
 
@@ -360,6 +442,7 @@ fn run_game(
 
     let mut white_coins = 0;
     let mut black_coins = 0;
+    let mut game_outcome = GameOutcome::Ongoing;
 
     let mut control_state = ControlState::Idle;
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
@@ -514,15 +597,7 @@ fn run_game(
 
         // update
         {
-            fn piece_at(position: Vec2<i32>, pieces: &[Piece]) -> Option<usize> {
-                let mut result = None;
-                for (index, piece) in pieces.iter().enumerate() {
-                    if piece.position == position {
-                        result = Some(index);
-                    }
-                }
-                result
-            }
+            use pleco::Board;
 
             match control_state {
                 ControlState::SelectedPieceIndex(index) => {
@@ -571,10 +646,23 @@ fn run_game(
 
                             // TODO(claire): Big game-flow stuff like this should
                             // be done in a less nested scope.
+                            let fen = generate_fen(&pieces, whos_turn);
+
+                            let board = Board::from_fen(&fen).unwrap();
+
+                            if board.checkmate() {
+                                game_outcome = GameOutcome::Victory(whos_turn);
+                            }
+                            else if board.stalemate() {
+                                game_outcome = GameOutcome::Stalemate;
+                            }
+
                             whos_turn = match whos_turn {
                                 ChessColor::White => ChessColor::Black,
                                 ChessColor::Black => ChessColor::White,
                             };
+
+
 
                             // Restock shop
                             for piece in &mut pieces_for_sale {
@@ -632,76 +720,11 @@ fn run_game(
                 // Recalculate possible moves
                 valid_destinations.clear();
                 if let ControlState::SelectedPieceIndex(index) = control_state {
-                    use pleco::Board;
-
                     let piece = &pieces[index];
                     let (px, py) = piece.position.as_tuple();
                     let piece_pos_u8 = (py * 8 + px) as u8;
 
-                    // First generate FEN
-                    let fen = {
-                        use std::fmt::Write;
-
-                        let mut buffer = String::with_capacity(128);
-                        let mut empty_stretch = 0;
-
-                        for y in 0..8 {
-                            for x in 0..8 {
-                                match piece_at(vec2(x, 7 - y).as_i32(), &pieces) {
-                                    Some(index) => {
-                                        use ChessColor::*;
-                                        use PieceType::*;
-
-                                        if empty_stretch > 0 {
-                                            write!(buffer, "{}", empty_stretch)
-                                                .unwrap();
-                                            empty_stretch = 0;
-                                        }
-
-                                        let piece = &pieces[index];
-                                        let ch =
-                                            match (piece.color, piece.piece_type) {
-                                                (White, Pawn) => "P",
-                                                (White, King) => "K",
-                                                (White, Queen) => "Q",
-                                                (White, Bishop) => "B",
-                                                (White, Rook) => "R",
-                                                (White, Knight) => "N",
-                                                (Black, Pawn) => "p",
-                                                (Black, King) => "k",
-                                                (Black, Queen) => "q",
-                                                (Black, Bishop) => "b",
-                                                (Black, Rook) => "r",
-                                                (Black, Knight) => "n",
-                                            };
-                                        buffer.push_str(ch);
-                                    }
-                                    None => {
-                                        empty_stretch += 1;
-                                    }
-                                }
-                            }
-
-                            if empty_stretch > 0 {
-                                write!(buffer, "{}", empty_stretch).unwrap();
-                                empty_stretch = 0;
-                            }
-
-                            if y < 7 {
-                                buffer.push_str("/");
-                            }
-                        }
-
-                        match whos_turn {
-                            ChessColor::White => buffer.push_str(" w "),
-                            ChessColor::Black => buffer.push_str(" b "),
-                        }
-
-                        buffer.push_str("KQkq - 0 1");
-
-                        buffer
-                    };
-
+                    let fen = generate_fen(&pieces, whos_turn);
                     let board = Board::from_fen(&fen).unwrap();
                     let moves = board.generate_moves();
 
@@ -1118,6 +1141,20 @@ fn run_game(
                     &font_texture,
                 );
             }
+
+            let status_label = match game_outcome {
+                GameOutcome::Ongoing => "Ongoing...".into(),
+                GameOutcome::Stalemate => "Stalemate".into(),
+                GameOutcome::Victory(x) => format!("Checkmate: {:?} wins", x)
+            };
+
+            label_renderer.add_label(
+                &status_label,
+                vec3(0.0, -4.0, 0.0),
+                0.5,
+                &text_system,
+                &font_texture,
+                );
 
             for (index, &tile) in buy_tiles.iter().enumerate() {
                 let piece_for_sale = pieces_for_sale[index];
