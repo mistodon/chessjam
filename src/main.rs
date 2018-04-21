@@ -1352,8 +1352,19 @@ fn run_game(
             for &(ref label, pos, scale) in world_label_renderer.labels() {
                 let screen_pos = view_projection_matrix * pos.extend(1.0);
                 let screen_pos = (screen_pos / screen_pos.0[3]).retract();
+                let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
                 let scale = Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
                 let label_transform = text_scale * Mat4::translation(screen_pos) * scale;
+                let shadow_transform = text_scale * Mat4::translation(shadow_pos) * scale;
+
+                glium_text::draw(
+                    &label,
+                    &text_system,
+                    &mut frame,
+                    shadow_transform.0,
+                    (0.0, 0.0, 0.0, 0.6),
+                );
+
                 glium_text::draw(
                     &label,
                     &text_system,
