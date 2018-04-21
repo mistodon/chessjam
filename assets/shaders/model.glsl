@@ -2,6 +2,8 @@
 
 uniform mat4 transform;
 uniform mat3 normal_matrix;
+uniform vec3 texture_offset;
+uniform vec3 texture_scale;
 
 in vec3 offset;
 in vec3 normal;
@@ -12,7 +14,7 @@ out vec3 model_normal;
 void main()
 {
     world_normal = normal_matrix * normal;
-    model_pos = offset;
+    model_pos = offset * texture_scale + texture_offset;
     model_normal = normal;
     gl_Position = transform * vec4(offset, 1.0);
 }
