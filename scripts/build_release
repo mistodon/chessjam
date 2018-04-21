@@ -90,6 +90,7 @@ if [[ "$platform" == "macOS" ]]; then
         <key>CFBundleIconFile</key><string>Icon</string>
         <key>CFBundlePackageType</key><string>APPL</string>
         <key>CFBundleShortVersionString</key><string>$version</string>
+        <key>NSHighResolutionCapable</key><true/>
         <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
 </dict>
 </plist>"
