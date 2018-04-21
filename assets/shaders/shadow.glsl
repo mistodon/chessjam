@@ -9,7 +9,7 @@ uniform vec3 model_space_shadow_direction;
 
 void main()
 {
-    float shadow_length = step(0.0, -dot(normal, model_space_shadow_direction)) * 10.0;
+    float shadow_length = 0.1 + step(0.0, dot(normal, model_space_shadow_direction)) * 10.0;
     gl_Position = transform * vec4(offset + model_space_shadow_direction * shadow_length, 1.0);
 }
 
