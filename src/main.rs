@@ -801,17 +801,21 @@ fn run_game(
             for y in 0..8 {
                 for x in 0..8 {
                     let position = vec3(-3.5, 0.0, -3.5) + vec3(x, 0, y).as_f32();
-                    let color = match (x + y) % 2 {
-                        0 => Vec4::from_slice(&config.colors.black).as_f32(),
-                        _ => Vec4::from_slice(&config.colors.white).as_f32(),
+//                     let color = match (x + y) % 2 {
+//                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
+//                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
+//                     };
+                    let texture = match (x + y) % 2 {
+                        0 => &black_marble_texture,
+                        _ => &white_marble_texture,
                     };
                     let mvp_matrix =
                         view_projection_matrix * Mat4::translation(position);
                     lit_render_buffer.push(RenderCommand {
                         mesh: &cube_mesh,
-                        color,
+                        color: vec4(0.9, 0.9, 0.9, 1.0),
                         mvp_matrix,
-                        colormap: &white_texture,
+                        colormap: texture,
                         texture_scale: vec3(1.0, 1.0, 1.0),
                         texture_offset: vec3(0.0, 0.0, 0.0),
                     });
@@ -854,14 +858,12 @@ fn run_game(
             };
 
             for piece in &pieces {
-                let (color, texture) = match piece.color {
+                let (texture_scale, texture) = match piece.color {
                     ChessColor::Black => {
-                        (Vec4::from_slice(&config.colors.grey).as_f32(),
-                        &black_marble_texture)
+                        (vec3(1.0, 1.0, 1.0), &black_marble_texture)
                     }
                     ChessColor::White => {
-                        (Vec4::from_slice(&config.colors.white).as_f32(),
-                        &white_marble_texture)
+                        (vec3(2.0, 1.0, 2.0), &white_marble_texture)
                     }
                 };
 
@@ -874,7 +876,7 @@ fn run_game(
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: texture,
-                    texture_scale: vec3(1.0, 1.0, 1.0),
+                    texture_scale,
                     texture_offset: vec3(0.5, 0.0, 0.5),
                 });
             }
