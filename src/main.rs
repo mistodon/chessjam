@@ -1078,10 +1078,10 @@ fn run_game(
                 },
                 color_mask: (false, false, false, false),
                 stencil: Stencil {
-                    depth_pass_operation_clockwise: StencilOperation::Increment,
+                    depth_pass_operation_counter_clockwise: StencilOperation::Increment,
                     ..Default::default()
                 },
-                backface_culling: BackfaceCullingMode::CullCounterClockwise,
+                backface_culling: BackfaceCullingMode::CullClockwise,
                 viewport: Some(viewport),
                 ..Default::default()
             };
@@ -1094,11 +1094,11 @@ fn run_game(
                 },
                 color_mask: (false, false, false, false),
                 stencil: Stencil {
-                    depth_pass_operation_counter_clockwise:
+                    depth_pass_operation_clockwise:
                         StencilOperation::Decrement,
                     ..Default::default()
                 },
-                backface_culling: BackfaceCullingMode::CullClockwise,
+                backface_culling: BackfaceCullingMode::CullCounterClockwise,
                 viewport: Some(viewport),
                 ..Default::default()
             };
