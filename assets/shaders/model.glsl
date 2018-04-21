@@ -6,10 +6,14 @@ uniform mat3 normal_matrix;
 in vec3 offset;
 in vec3 normal;
 out vec3 world_normal;
+out vec3 model_pos;
+out vec3 model_normal;
 
 void main()
 {
     world_normal = normal_matrix * normal;
+    model_pos = offset;
+    model_normal = normal;
     gl_Position = transform * vec4(offset, 1.0);
 }
 
@@ -17,6 +21,7 @@ void main()
 
 #version 330
 
+uniform sampler2D colormap;
 uniform mat4 light_direction_matrix;
 uniform mat4 light_color_matrix;
 uniform vec4 albedo;
@@ -27,14 +32,24 @@ uniform vec3 specular_color;
 uniform vec3 view_vector;
 
 in vec3 world_normal;
+in vec3 model_pos;
+in vec3 model_normal;
 out vec4 color;
 
 void main()
 {
+    // Texturing
+    vec3 blending = normalize(max(abs(model_normal), 0.00001));
+    blending /= dot(blending, vec3(1.0, 1.0, 1.0));
+    vec4 color_x = texture(colormap, model_pos.yz) * blending.x;
+    vec4 color_y = texture(colormap, model_pos.xz) * blending.y;
+    vec4 color_z = texture(colormap, model_pos.xy) * blending.z;
+    vec4 color_sample = color_x + color_y + color_z;
+
     // Diffuse
     vec4 light_contributions = max(light_direction_matrix * vec4(-world_normal, 1.0), 0.0);
     vec4 light_color = light_color_matrix * light_contributions;
-    color = vec4(light_color.rgb, 1.0) * albedo;
+    color = vec4(light_color.rgb, 1.0) * albedo * color_sample;
 
     // TODO(claire): Fix this god damn mess
     // Specular

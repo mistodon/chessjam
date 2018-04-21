@@ -20,8 +20,11 @@ mod ui;
 use std::time::Instant;
 
 use adequate_math::*;
-use glium::glutin::EventsLoop;
-use glium::Display;
+use glium::{
+    Display,
+    Texture2d,
+    glutin::EventsLoop,
+};
 
 use chessjam::config::Config;
 use graphics::Mesh;
@@ -32,6 +35,7 @@ struct RenderCommand<'a> {
     mesh: &'a Mesh,
     color: Vec4<f32>,
     mvp_matrix: Mat4<f32>,
+    colormap: &'a Texture2d,
 }
 
 
@@ -325,6 +329,26 @@ fn run_game(
         asset_str!("assets/meshes/knight.obj").as_ref(),
     );
 
+    let table_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/table.obj").as_ref(),
+    );
+
+    let white_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/white.png").as_ref(),
+    );
+
+    let checker_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/checker.png").as_ref(),
+    );
+
+    let wood_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/wood.png").as_ref(),
+    );
+
     let text_system = TextSystem::new(display);
     let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
     let font_texture =
@@ -454,6 +478,7 @@ fn run_game(
     // Profiling
     let mut timer = Instant::now();
     let mut timesheet = String::new();
+    let mut show_stats = true;
 
     loop {
         let (dt, now) = chessjam::delta_time(frame_time);
@@ -524,6 +549,9 @@ fn run_game(
         }
         if keyboard.pressed(Key::R) && keyboard.modifiers.logo {
             return true;
+        }
+        if keyboard.pressed(Key::H) {
+            show_stats = !show_stats;
         }
 
         camera_angle += camera_motion.0[0] * dt;
@@ -771,6 +799,7 @@ fn run_game(
                         mesh: &cube_mesh,
                         color,
                         mvp_matrix,
+                        colormap: &white_texture,
                     });
                 }
             }
@@ -781,6 +810,7 @@ fn run_game(
                 mesh: &cube_mesh,
                 color: vec4(0.5, 1.0, 0.5, 1.0),
                 mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                colormap: &white_texture,
             });
 
             // Buy squares
@@ -791,6 +821,7 @@ fn run_game(
                     color: vec4(0.5, 0.5, 0.25, 1.0),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
+                    colormap: &white_texture,
                 });
             }
 
@@ -822,6 +853,7 @@ fn run_game(
                     color,
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
+                    colormap: &checker_texture,
                 });
             }
 
@@ -838,9 +870,17 @@ fn run_game(
                         mesh,
                         color,
                         mvp_matrix,
+                        colormap: &checker_texture,
                     });
                 }
             }
+
+            lit_render_buffer.push(RenderCommand {
+                mesh: &table_mesh,
+                color: vec4(0.6, 0.3, 0.0, 1.0),
+                mvp_matrix: view_projection_matrix * Mat4::translation(vec3(0.0, -0.2, 0.0)),
+                colormap: &wood_texture,
+            });
 
             // Add tile highlights
             let height_offset = vec3(0.0, 0.2, 0.0);
@@ -858,6 +898,7 @@ fn run_game(
                     color: Vec4::from_slice(&config.colors.selected).as_f32(),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
+                    colormap: &white_texture,
                 });
             }
 
@@ -866,6 +907,7 @@ fn run_game(
                 mesh: &cube_mesh,
                 color: Vec4::from_slice(&config.colors.cursor).as_f32(),
                 mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                colormap: &white_texture,
             });
 
             for &dest in &valid_destinations {
@@ -875,6 +917,7 @@ fn run_game(
                     color: Vec4::from_slice(&config.colors.dest).as_f32(),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
+                    colormap: &white_texture,
                 });
             }
 
@@ -885,6 +928,7 @@ fn run_game(
                     color: Vec4::from_slice(&config.colors.dest).as_f32(),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
+                    colormap: &white_texture,
                 });
             }
 
@@ -895,6 +939,7 @@ fn run_game(
                     color: Vec4::from_slice(&config.colors.place).as_f32(),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
+                    colormap: &white_texture,
                 });
             }
 
@@ -940,6 +985,7 @@ fn run_game(
                         &uniform!{
                             transform: command.mvp_matrix.0,
                             normal_matrix: normal_matrix.0,
+                            colormap: command.colormap,
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: shadow_color_matrix.0,
                             albedo: command.color.0,
@@ -1044,6 +1090,7 @@ fn run_game(
                         &uniform!{
                             transform: command.mvp_matrix.0,
                             normal_matrix: normal_matrix.0,
+                            colormap: command.colormap,
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: light_color_matrix.0,
                             albedo: command.color.0,
@@ -1086,6 +1133,9 @@ fn run_game(
                                 light_direction_matrix: light_direction_matrix.0,
                                 light_color_matrix: light_color_matrix.0,
                                 albedo: highlight.color.0,
+                                view_vector: view_vector.0,
+                                specular_power: config.light.specular_power as f32,
+                                specular_color: [0.0, 0.0, 0.0_f32],
                             },
                             &highlight_draw_params,
                         )
@@ -1106,13 +1156,15 @@ fn run_game(
                 &font_texture,
             );
 
-            label_renderer.add_label(
-                &format!("FPS {}", (1.0 / dt).round()),
-                vec3(7.5, -4.0, 0.0),
-                0.1,
-                &text_system,
-                &font_texture,
-            );
+            if show_stats {
+                label_renderer.add_label(
+                    &format!("FPS {}", (1.0 / dt).round()),
+                    vec3(7.5, -4.0, 0.0),
+                    0.1,
+                    &text_system,
+                    &font_texture,
+                    );
+            }
 
             label_renderer.add_label(
                 &format!("White's coins: {}", white_coins),
@@ -1131,19 +1183,21 @@ fn run_game(
             );
 
 
-            for (i, line) in timesheet.lines().enumerate() {
-                let y = -0.2 * i as f32;
-                label_renderer.add_label(
-                    line,
-                    vec3(-7.9, y, 0.0),
-                    0.1,
-                    &text_system,
-                    &font_texture,
-                );
+            if show_stats {
+                for (i, line) in timesheet.lines().enumerate() {
+                    let y = -0.2 * i as f32;
+                    label_renderer.add_label(
+                        line,
+                        vec3(-7.9, y, 0.0),
+                        0.1,
+                        &text_system,
+                        &font_texture,
+                        );
+                }
             }
 
             let status_label = match game_outcome {
-                GameOutcome::Ongoing => "Ongoing...".into(),
+                GameOutcome::Ongoing => "".into(),
                 GameOutcome::Stalemate => "Stalemate".into(),
                 GameOutcome::Victory(x) => format!("Checkmate: {:?} wins", x)
             };
