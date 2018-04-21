@@ -36,6 +36,8 @@ struct RenderCommand<'a> {
     color: Vec4<f32>,
     mvp_matrix: Mat4<f32>,
     colormap: &'a Texture2d,
+    texture_scale: Vec3<f32>,
+    texture_offset: Vec3<f32>,
 }
 
 
@@ -800,6 +802,8 @@ fn run_game(
                         color,
                         mvp_matrix,
                         colormap: &white_texture,
+                        texture_scale: vec3(1.0, 1.0, 1.0),
+                        texture_offset: vec3(0.0, 0.0, 0.0),
                     });
                 }
             }
@@ -811,6 +815,8 @@ fn run_game(
                 color: vec4(0.5, 1.0, 0.5, 1.0),
                 mvp_matrix: view_projection_matrix * Mat4::translation(position),
                 colormap: &white_texture,
+                texture_scale: vec3(1.0, 1.0, 1.0),
+                texture_offset: vec3(0.0, 0.0, 0.0),
             });
 
             // Buy squares
@@ -822,6 +828,8 @@ fn run_game(
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
+                    texture_scale: vec3(1.0, 1.0, 1.0),
+                    texture_offset: vec3(0.0, 0.0, 0.0),
                 });
             }
 
@@ -854,6 +862,8 @@ fn run_game(
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &checker_texture,
+                    texture_scale: vec3(1.0, 1.0, 1.0),
+                    texture_offset: vec3(0.0, 0.0, 0.0),
                 });
             }
 
@@ -871,15 +881,19 @@ fn run_game(
                         color,
                         mvp_matrix,
                         colormap: &checker_texture,
+                        texture_scale: vec3(1.0, 1.0, 1.0),
+                        texture_offset: vec3(0.0, 0.0, 0.0),
                     });
                 }
             }
 
             lit_render_buffer.push(RenderCommand {
                 mesh: &table_mesh,
-                color: vec4(0.6, 0.3, 0.0, 1.0),
+                color: vec4(1.0, 1.0, 1.0, 1.0),
                 mvp_matrix: view_projection_matrix * Mat4::translation(vec3(0.0, -0.2, 0.0)),
                 colormap: &wood_texture,
+                texture_scale: vec3(1.0 / 32.0, 1.0, 1.0 / 16.0),
+                texture_offset: vec3(0.5, 0.0, 0.5),
             });
 
             // Add tile highlights
@@ -899,6 +913,8 @@ fn run_game(
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
+                    texture_scale: vec3(1.0, 1.0, 1.0),
+                    texture_offset: vec3(0.0, 0.0, 0.0),
                 });
             }
 
@@ -908,6 +924,8 @@ fn run_game(
                 color: Vec4::from_slice(&config.colors.cursor).as_f32(),
                 mvp_matrix: view_projection_matrix * Mat4::translation(position),
                 colormap: &white_texture,
+                texture_scale: vec3(1.0, 1.0, 1.0),
+                texture_offset: vec3(0.0, 0.0, 0.0),
             });
 
             for &dest in &valid_destinations {
@@ -918,6 +936,8 @@ fn run_game(
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
+                    texture_scale: vec3(1.0, 1.0, 1.0),
+                    texture_offset: vec3(0.0, 0.0, 0.0),
                 });
             }
 
@@ -929,6 +949,8 @@ fn run_game(
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
+                    texture_scale: vec3(1.0, 1.0, 1.0),
+                    texture_offset: vec3(0.0, 0.0, 0.0),
                 });
             }
 
@@ -940,6 +962,8 @@ fn run_game(
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
+                    texture_scale: vec3(1.0, 1.0, 1.0),
+                    texture_offset: vec3(0.0, 0.0, 0.0),
                 });
             }
 
@@ -985,6 +1009,8 @@ fn run_game(
                         &uniform!{
                             transform: command.mvp_matrix.0,
                             normal_matrix: normal_matrix.0,
+                            texture_scale: command.texture_scale.0,
+                            texture_offset: command.texture_offset.0,
                             colormap: command.colormap,
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: shadow_color_matrix.0,
@@ -1090,6 +1116,8 @@ fn run_game(
                         &uniform!{
                             transform: command.mvp_matrix.0,
                             normal_matrix: normal_matrix.0,
+                            texture_scale: command.texture_scale.0,
+                            texture_offset: command.texture_offset.0,
                             colormap: command.colormap,
                             light_direction_matrix: light_direction_matrix.0,
                             light_color_matrix: light_color_matrix.0,
@@ -1130,6 +1158,9 @@ fn run_game(
                             &uniform!{
                                 transform: highlight.mvp_matrix.0,
                                 normal_matrix: normal_matrix.0,
+                                texture_scale: highlight.texture_scale.0,
+                                texture_offset: highlight.texture_offset.0,
+                                colormap: highlight.colormap,
                                 light_direction_matrix: light_direction_matrix.0,
                                 light_color_matrix: light_color_matrix.0,
                                 albedo: highlight.color.0,
