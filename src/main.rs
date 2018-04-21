@@ -296,6 +296,11 @@ fn run_game(
         asset_str!("assets/shaders/shadow.glsl").as_ref(),
     );
 
+    let skyball_shader = graphics::create_shader(
+        display,
+        asset_str!("assets/shaders/skyball.glsl").as_ref(),
+    );
+
     let cube_mesh = graphics::create_obj_mesh(
         display,
         asset_str!("assets/meshes/tile.obj").as_ref(),
@@ -336,6 +341,11 @@ fn run_game(
         asset_str!("assets/meshes/table.obj").as_ref(),
     );
 
+    let skyball_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/skyball.obj").as_ref(),
+    );
+
     let white_texture = graphics::create_texture(
         display,
         asset_bytes!("assets/textures/white.png").as_ref(),
@@ -343,7 +353,7 @@ fn run_game(
 
     let checker_texture = graphics::create_texture(
         display,
-        asset_bytes!("assets/textures/checker.png").as_ref(),
+        asset_bytes!("assets/textures/white.png").as_ref(),
     );
 
     let wood_texture = graphics::create_texture(
@@ -359,6 +369,11 @@ fn run_game(
     let white_marble_texture = graphics::create_texture(
         display,
         asset_bytes!("assets/textures/marble_white.png").as_ref(),
+    );
+
+    let skyball_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/skyball.png").as_ref(),
     );
 
     let text_system = TextSystem::new(display);
@@ -568,6 +583,7 @@ fn run_game(
 
         camera_angle += camera_motion.0[0] * dt;
         camera_tilt += camera_motion.0[1] * dt;
+        camera_tilt = camera_tilt.min(89.0).max(10.0);
 
         let camera_position: Vec3<f32>;
         let camera_direction: Vec3<f32>;
@@ -987,16 +1003,30 @@ fn run_game(
             let mut frame = display.draw();
             frame.clear_all_srgb((0.0, 0.0, 0.0, 1.0), 1.0, 0);
 
-            let clear_color = Vec4::from_slice(&config.colors.sky)
-                .as_f32()
-                .as_tuple();
-            frame.clear(
-                Some(&viewport),
-                Some(clear_color),
-                true,
-                None,
-                None,
-            );
+            let sky_draw_params = DrawParameters {
+                depth: Depth {
+                    test: DepthTest::Overwrite,
+                    write: false,
+                    ..Default::default()
+                },
+                backface_culling: BackfaceCullingMode::CullClockwise,
+                viewport: Some(viewport),
+                ..Default::default()
+            };
+
+            let skyball_transform = view_projection_matrix
+                * Mat4::scale(vec4(40.0, 40.0, 40.0, 1.0));
+
+            frame.draw(
+                &skyball_mesh.vertices,
+                &skyball_mesh.indices,
+                &skyball_shader,
+                &uniform!{
+                    transform: skyball_transform.0,
+                    colormap: &skyball_texture,
+                },
+                &sky_draw_params
+            ).unwrap();
 
             let draw_params = DrawParameters {
                 depth: Depth {
