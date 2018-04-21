@@ -33,7 +33,7 @@ MVP
 
 ## Packaging
 [ ] macOS app
-    [ ] Fix resolution in release
+    [x] Fix resolution in release
 [ ] Windows app
 
 ## Later on...

@@ -489,16 +489,16 @@ fn run_game(
 
     // Profiling
     let mut timer = Instant::now();
-    let mut timesheet = String::new();
+    let mut stats_text = String::new();
     let mut show_stats = true;
 
     loop {
         let (dt, now) = chessjam::delta_time(frame_time);
         frame_time = now;
         let timer = &mut timer;
-        let timesheet = &mut timesheet;
+        let stats_text = &mut stats_text;
 
-        stopclock("between-frames", timer, timesheet);
+        stopclock("between-frames", timer, stats_text);
 
         // handle_events
         let mut closed = false;
@@ -554,7 +554,7 @@ fn run_game(
             });
         }
 
-        stopclock("inputs", timer, timesheet);
+        stopclock("inputs", timer, stats_text);
 
         if closed || keyboard.pressed(Key::Escape) {
             return false;
@@ -630,7 +630,7 @@ fn run_game(
             chessjam::world_to_grid(hit)
         };
 
-        stopclock("pre-update", timer, timesheet);
+        stopclock("pre-update", timer, stats_text);
 
         let mut valid_purchase_placements = Vec::new();
         let mut can_sell = false;
@@ -780,7 +780,7 @@ fn run_game(
             }
         }
 
-        stopclock("update", timer, timesheet);
+        stopclock("update", timer, stats_text);
 
         // render
         {
@@ -981,7 +981,7 @@ fn run_game(
                 });
             }
 
-            stopclock("buffers", timer, timesheet);
+            stopclock("buffers", timer, stats_text);
 
 
             let mut frame = display.draw();
@@ -1009,7 +1009,7 @@ fn run_game(
                 ..Default::default()
             };
 
-            stopclock("pre-draw", timer, timesheet);
+            stopclock("pre-draw", timer, stats_text);
 
             // Render all objects as if in shadow
             for command in &lit_render_buffer {
@@ -1038,7 +1038,7 @@ fn run_game(
                     .unwrap();
             }
 
-            stopclock("dark-pass", timer, timesheet);
+            stopclock("dark-pass", timer, stats_text);
 
             let shadow_front_draw_params = DrawParameters {
                 depth: Depth {
@@ -1096,7 +1096,7 @@ fn run_game(
                         )
                         .unwrap();
                 }
-                stopclock("shadow-pass", timer, timesheet);
+                stopclock("shadow-pass", timer, stats_text);
             }
 
 
@@ -1145,7 +1145,7 @@ fn run_game(
                     .unwrap();
             }
 
-            stopclock("light-pass", timer, timesheet);
+            stopclock("light-pass", timer, stats_text);
 
             // Render highlights
             {
@@ -1188,7 +1188,7 @@ fn run_game(
                 }
             }
 
-            stopclock("highlight-pass", timer, timesheet);
+            stopclock("highlight-pass", timer, stats_text);
 
             label_renderer.clear();
             world_label_renderer.clear();
@@ -1229,7 +1229,7 @@ fn run_game(
 
 
             if show_stats {
-                for (i, line) in timesheet.lines().enumerate() {
+                for (i, line) in stats_text.lines().enumerate() {
                     let y = -0.2 * i as f32;
                     label_renderer.add_label(
                         line,
@@ -1286,7 +1286,12 @@ fn run_game(
                 }
             }
 
-            timesheet.clear();
+            stats_text.clear();
+            {
+                use std::fmt::Write;
+
+                writeln!(stats_text, "Resolution: {:?}", display.get_framebuffer_dimensions()).unwrap();
+            }
 
 
             let (vx, vy) = chessjam::viewport_stretch(
@@ -1329,11 +1334,11 @@ fn run_game(
             }
 
 
-            stopclock("text-pass", timer, timesheet);
+            stopclock("text-pass", timer, stats_text);
 
             frame.finish().unwrap();
 
-            stopclock("end-frame", timer, timesheet);
+            stopclock("end-frame", timer, stats_text);
         }
     }
 }
