@@ -22,7 +22,7 @@ use std::time::Instant;
 use adequate_math::*;
 use glium::{
     Display,
-    Texture2d,
+    texture::SrgbTexture2d,
     glutin::EventsLoop,
 };
 
@@ -35,7 +35,7 @@ struct RenderCommand<'a> {
     mesh: &'a Mesh,
     color: Vec4<f32>,
     mvp_matrix: Mat4<f32>,
-    colormap: &'a Texture2d,
+    colormap: &'a SrgbTexture2d,
     texture_scale: Vec3<f32>,
     texture_offset: Vec3<f32>,
 }
@@ -349,6 +349,16 @@ fn run_game(
     let wood_texture = graphics::create_texture(
         display,
         asset_bytes!("assets/textures/wood.png").as_ref(),
+    );
+
+    let black_marble_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/marble_black.png").as_ref(),
+    );
+
+    let white_marble_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/marble_white.png").as_ref(),
     );
 
     let text_system = TextSystem::new(display);
@@ -844,12 +854,14 @@ fn run_game(
             };
 
             for piece in &pieces {
-                let color = match piece.color {
+                let (color, texture) = match piece.color {
                     ChessColor::Black => {
-                        Vec4::from_slice(&config.colors.grey).as_f32()
+                        (Vec4::from_slice(&config.colors.grey).as_f32(),
+                        &black_marble_texture)
                     }
                     ChessColor::White => {
-                        Vec4::from_slice(&config.colors.white).as_f32()
+                        (Vec4::from_slice(&config.colors.white).as_f32(),
+                        &white_marble_texture)
                     }
                 };
 
@@ -858,12 +870,12 @@ fn run_game(
                 let position = chessjam::grid_to_world(piece.position);
                 lit_render_buffer.push(RenderCommand {
                     mesh,
-                    color,
+                    color: vec4(1.0, 1.0, 1.0, 1.0),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
-                    colormap: &checker_texture,
+                    colormap: texture,
                     texture_scale: vec3(1.0, 1.0, 1.0),
-                    texture_offset: vec3(0.0, 0.0, 0.0),
+                    texture_offset: vec3(0.5, 0.0, 0.5),
                 });
             }
 
