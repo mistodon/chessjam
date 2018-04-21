@@ -1,4 +1,4 @@
-use glium::{Display, IndexBuffer, Program, VertexBuffer};
+use glium::{Display, IndexBuffer, Program, VertexBuffer, Texture2d};
 
 use adequate_math::*;
 
@@ -39,6 +39,18 @@ pub fn create_shader(display: &Display, shader_source: &str) -> Program {
             uses_point_size: false,
         },
     ).unwrap()
+}
+
+
+pub fn create_texture(display: &Display, bytes: &[u8]) -> Texture2d
+{
+    use glium::texture::RawImage2d;
+    use chessjam;
+
+    let (raw_bytes, image_dimensions) = chessjam::decode_image(bytes);
+
+    let image = RawImage2d::from_raw_rgba_reversed(&raw_bytes, image_dimensions);
+    Texture2d::new(display, image).expect("Failed to load texture")
 }
 
 
