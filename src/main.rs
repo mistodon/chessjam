@@ -10,6 +10,7 @@ extern crate glium;
 extern crate adequate_math;
 extern crate glium_text;
 extern crate pleco;
+extern crate pleco_engine;
 extern crate rand;
 extern crate wavefront_obj;
 
@@ -498,6 +499,7 @@ fn run_game(
     let mut control_state = ControlState::Idle;
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
     let mut whos_turn = ChessColor::White;
+    let ai_player: Option<ChessColor> = Some(ChessColor::Black);
 
     let mut lit_render_buffer = Vec::new();
     let mut highlight_render_buffer = Vec::new();
@@ -681,7 +683,46 @@ fn run_game(
             }
 
 
-            if mouse.pressed(Button::Left) {
+            // Player actions
+            let mut player_move = None;
+            let mut piece_promotion = None;
+
+            if ai_player == Some(whos_turn) {
+                use pleco_engine::{
+                    engine::PlecoSearcher,
+                    time::uci_timer::PreLimits,
+                };
+
+                let fen = generate_fen(&pieces, whos_turn);
+                let board = Board::from_fen(&fen).unwrap();
+
+                let mut limits = PreLimits::blank();
+                limits.depth = Some(3);
+                let mut searcher = PlecoSearcher::init(false);
+
+                searcher.search(&board, &limits);
+
+                let mov = searcher.await_move();
+                let from = chessjam::grid_from_u8(mov.get_src_u8());
+                let to = chessjam::grid_from_u8(mov.get_dest_u8());
+                player_move = Some((from, to));
+
+                if mov.is_promo() {
+                    use pleco::PieceType::*;
+
+                    let piece = match mov.promo_piece() {
+                        Q => PieceType::Queen,
+                        R => PieceType::Rook,
+                        B => PieceType::Bishop,
+                        N => PieceType::Knight,
+                        P => PieceType::Pawn,
+                        _ => unreachable!("Invalid promotion was attempted."),
+                    };
+
+                    piece_promotion = Some(piece);
+                }
+            }
+            else if mouse.pressed(Button::Left) {
                 match control_state {
                     ControlState::Idle => {
                         for (index, &tile) in buy_tiles.iter().enumerate() {
@@ -696,41 +737,9 @@ fn run_game(
                     }
                     ControlState::SelectedPieceIndex(index) => {
                         if valid_destinations.contains(&tile_cursor) {
-                            let taken_piece = piece_at(tile_cursor, &pieces);
-                            pieces[index].position = tile_cursor;
-                            pieces[index].moved = true;
-
-                            // TODO(***realname***): Big game-flow stuff like this should
-                            // be done in a less nested scope.
-                            let fen = generate_fen(&pieces, whos_turn);
-
-                            let board = Board::from_fen(&fen).unwrap();
-
-                            if board.checkmate() {
-                                game_outcome = GameOutcome::Victory(whos_turn);
-                            }
-                            else if board.stalemate() {
-                                game_outcome = GameOutcome::Stalemate;
-                            }
-
-                            whos_turn = match whos_turn {
-                                ChessColor::White => ChessColor::Black,
-                                ChessColor::Black => ChessColor::White,
-                            };
-
-
-
-                            // Restock shop
-                            for piece in &mut pieces_for_sale {
-                                if piece.is_none() {
-                                    *piece = Some(random_piece(&config));
-                                }
-                            }
-
-                            // TODO(***realname***): When castling, this will do Bad Things.
-                            if let Some(index) = taken_piece {
-                                pieces.swap_remove(index);
-                            }
+                            let from_tile = pieces[index].position;
+                            let to_tile = tile_cursor;
+                            player_move = Some((from_tile, to_tile));
                         }
                         else if tile_cursor == sell_tile && can_sell {
                             if pieces[index].color == whos_turn {
@@ -774,6 +783,7 @@ fn run_game(
                 }
 
                 // Recalculate possible moves
+                // TODO(***realname***): Put this at an outer scope, invalidate it safely
                 valid_destinations.clear();
                 if let ControlState::SelectedPieceIndex(index) = control_state {
                     let piece = &pieces[index];
@@ -787,10 +797,50 @@ fn run_game(
                     for chessmove in moves.iter() {
                         let from_u8 = chessmove.get_src_u8();
                         let to_u8 = chessmove.get_dest_u8();
-                        let dest = vec2(to_u8 % 8, to_u8 / 8).as_i32();
+                        let dest = chessjam::grid_from_u8(to_u8);
                         if from_u8 == piece_pos_u8 {
                             valid_destinations.push(dest);
                         }
+                    }
+                }
+            }
+
+            if let Some((from, to)) = player_move {
+                {
+                    let moved_index = piece_at(from, &pieces).unwrap();
+                    let taken_index = piece_at(to, &pieces);
+                    pieces[moved_index].position = to;
+                    pieces[moved_index].moved = true;
+
+                    if let Some(promotion) = piece_promotion {
+                        pieces[moved_index].piece_type = promotion;
+                    }
+
+                    // TODO(***realname***): When castling, this will do Bad Things.
+                    if let Some(index) = taken_index {
+                        pieces.swap_remove(index);
+                    }
+                }
+
+                let fen = generate_fen(&pieces, whos_turn);
+                let board = Board::from_fen(&fen).unwrap();
+
+                if board.checkmate() {
+                    game_outcome = GameOutcome::Victory(whos_turn);
+                }
+                else if board.stalemate() {
+                    game_outcome = GameOutcome::Stalemate;
+                }
+
+                whos_turn = match whos_turn {
+                    ChessColor::White => ChessColor::Black,
+                    ChessColor::Black => ChessColor::White,
+                };
+
+                // Restock shop
+                for piece in &mut pieces_for_sale {
+                    if piece.is_none() {
+                        *piece = Some(random_piece(&config));
                     }
                 }
             }
