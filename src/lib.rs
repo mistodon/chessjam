@@ -68,6 +68,10 @@ pub fn grid_to_world(point: Vec2<i32>) -> Vec3<f32> {
     vec3(x, 0, y).as_f32() - vec3(3.5, 0.0, 3.5)
 }
 
+pub fn grid_from_u8(square: u8) -> Vec2<i32> {
+    vec2(square % 8, square / 8).as_i32()
+}
+
 pub fn valid_square(tile: Vec2<i32>) -> bool {
     let (x, y) = tile.as_tuple();
     x >= 0 && x < 8 && y >= 0 && y < 8
