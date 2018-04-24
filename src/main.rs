@@ -41,6 +41,13 @@ struct RenderCommand<'a> {
     texture_offset: Vec3<f32>,
 }
 
+struct UiRenderCommand<'a> {
+    colormap: &'a SrgbTexture2d,
+    pos: Vec3<f32>,
+    scale: f32,
+    angle: f32,
+}
+
 
 #[derive(Debug)]
 pub struct Piece {
@@ -297,6 +304,11 @@ fn run_game(
         asset_str!("assets/shaders/shadow.glsl").as_ref(),
     );
 
+    let ui_shader = graphics::create_shader(
+        display,
+        asset_str!("assets/shaders/ui.glsl").as_ref(),
+    );
+
     let skyball_shader = graphics::create_shader(
         display,
         asset_str!("assets/shaders/skyball.glsl").as_ref(),
@@ -347,6 +359,16 @@ fn run_game(
         asset_str!("assets/meshes/skyball.obj").as_ref(),
     );
 
+    let quad_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/quad.obj").as_ref(),
+    );
+
+    let coin_mesh = graphics::create_obj_mesh(
+        display,
+        asset_str!("assets/meshes/coin.obj").as_ref(),
+    );
+
     let white_texture = graphics::create_texture(
         display,
         asset_bytes!("assets/textures/white.png").as_ref(),
@@ -354,7 +376,7 @@ fn run_game(
 
     let checker_texture = graphics::create_texture(
         display,
-        asset_bytes!("assets/textures/white.png").as_ref(),
+        asset_bytes!("assets/textures/checker.png").as_ref(),
     );
 
     let wood_texture = graphics::create_texture(
@@ -376,6 +398,22 @@ fn run_game(
         display,
         asset_bytes!("assets/textures/skyball.png").as_ref(),
     );
+
+    let ui_frame_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/ui_frame.png").as_ref(),
+    );
+
+    let ui_white_tile = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/ui_tile_white.png").as_ref(),
+    );
+
+    let ui_black_tile = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/ui_tile_black.png").as_ref(),
+    );
+
 
     let text_system = TextSystem::new(display);
     let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
@@ -508,9 +546,11 @@ fn run_game(
     let mut timer = Instant::now();
     let mut stats_text = String::new();
     let mut show_stats = true;
+    let start_time = Instant::now();
 
     loop {
         let (dt, now) = chessjam::delta_time(frame_time);
+        let elapsed = chessjam::elapsed_time(start_time);
         frame_time = now;
         let timer = &mut timer;
         let stats_text = &mut stats_text;
@@ -616,6 +656,19 @@ fn run_game(
             }
         };
 
+        let (vx, vy) = chessjam::viewport_stretch(
+            display.get_framebuffer_dimensions(),
+            viewport.width,
+            viewport.height,
+        ).as_tuple();
+
+        // TODO(claire): Why are these two matrices not interchangeable?
+        let text_projection = Mat4::scale(
+            vec4(2.0 / vx, 2.0 / vy, 1.0, 1.0)
+            / Vec4::from_slice(&config.text.viewport).as_f32(),
+        );
+
+        let ui_projection = matrix::ortho_projection(TARGET_ASPECT, 4.5, -1.0, 1.0);
 
         let tile_cursor = {
             let camera_forward = camera_direction.norm();
@@ -860,6 +913,9 @@ fn run_game(
                 Surface,
             };
 
+            let specular_color =
+                Vec3::from_slice(&config.light.specular_color).as_f32();
+
             lit_render_buffer.clear();
             highlight_render_buffer.clear();
 
@@ -960,7 +1016,7 @@ fn run_game(
                         mesh,
                         color,
                         mvp_matrix,
-                        colormap: &checker_texture,
+                        colormap: &white_texture,
                         texture_scale: vec3(1.0, 1.0, 1.0),
                         texture_offset: vec3(0.0, 0.0, 0.0),
                     });
@@ -1199,8 +1255,6 @@ fn run_game(
 
             for command in &lit_render_buffer {
                 let normal_matrix = Mat3::<f32>::identity();
-                let specular_color =
-                    Vec3::from_slice(&config.light.specular_color).as_f32();
 
                 frame
                     .draw(
@@ -1270,16 +1324,123 @@ fn run_game(
 
             stopclock("highlight-pass", timer, stats_text);
 
+            let (black_turn_y, white_turn_y) = match whos_turn {
+                ChessColor::Black => (4.6, 7.0),
+                ChessColor::White => (7.0, 4.6),
+            };
+
+            let ui_render_commands = vec![
+                UiRenderCommand {
+                    colormap: &ui_frame_texture,
+                    pos: vec3(-6.0, 3.0, 0.0),
+                    scale: 1.5,
+                    angle: -consts::TAU32 / 8.0,
+                },
+                UiRenderCommand {
+                    colormap: &ui_frame_texture,
+                    pos: vec3(6.0, 3.0, 0.0),
+                    scale: 1.5,
+                    angle: -consts::TAU32 / 8.0,
+                },
+                UiRenderCommand {
+                    colormap: &ui_white_tile,
+                    pos: vec3(-6.0, 3.7, 0.0),
+                    scale: 0.8,
+                    angle: -consts::TAU32 / 8.0,
+                },
+                UiRenderCommand {
+                    colormap: &ui_black_tile,
+                    pos: vec3(6.0, 3.7, 0.0),
+                    scale: 0.8,
+                    angle: -consts::TAU32 / 8.0,
+                },
+                UiRenderCommand {
+                    colormap: &ui_white_tile,
+                    pos: vec3(0.0, white_turn_y, 0.0),
+                    scale: 1.2,
+                    angle: -consts::TAU32 / 8.0,
+                },
+                UiRenderCommand {
+                    colormap: &ui_black_tile,
+                    pos: vec3(0.0, black_turn_y, 0.0),
+                    scale: 1.2,
+                    angle: -consts::TAU32 / 8.0,
+                },
+            ];
+
+            for command in &ui_render_commands {
+                let transform = ui_projection
+                    * Mat4::translation(command.pos)
+                    * matrix::euler_rotation(vec3(0.0, 0.0, command.angle))
+                    * Mat4::scale(vec4(command.scale, command.scale, 1.0, 1.0));
+
+                frame.draw(
+                    &quad_mesh.vertices,
+                    &quad_mesh.indices,
+                    &ui_shader,
+                    &uniform!{
+                        colormap: command.colormap,
+                        transform: transform.0,
+                    },
+                    &DrawParameters {
+                        depth: Depth {
+                            test: DepthTest::Overwrite,
+                            write: false,
+                            ..Default::default()
+                        },
+                        blend: Blend::alpha_blending(),
+                        backface_culling: BackfaceCullingMode::CullClockwise,
+                        viewport: Some(viewport),
+                        ..Default::default()
+                    }
+                ).unwrap();
+            }
+
+            let coin_positions = &[vec3(-6.45, 3.0, 0.0), vec3(5.55, 3.0, 0.0)];
+
+            for &coin_pos in coin_positions {
+                let coin_scale = 0.6;
+
+                let transform = ui_projection
+                    * Mat4::translation(coin_pos)
+                    * matrix::euler_rotation(vec3(0.0, -2.0 * elapsed, 0.0))
+                    * Mat4::scale(vec4(coin_scale, coin_scale, coin_scale, 1.0));
+
+                frame.draw(
+                    &coin_mesh.vertices,
+                    &coin_mesh.indices,
+                    &model_shader,
+                    &uniform!{
+                        transform: transform.0,
+                        normal_matrix: Mat3::<f32>::identity().0,
+                        texture_scale: vec3(1.0, 1.0, 1.0_f32).0,
+                        texture_offset: vec3(0.5, 0.5, 0.25_f32).0,
+                        colormap: &checker_texture,
+                        light_direction_matrix: light_direction_matrix.0,
+                        light_color_matrix: light_color_matrix.0,
+                        albedo: vec4(1.2, 1.2, 1.2, 1.0_f32).0,
+                        view_vector: vec3(0.0, 0.0, 1.0_f32).0,
+                        specular_power: config.light.specular_power as f32,
+                        specular_color: specular_color.0,
+                    },
+                    &DrawParameters {
+                        depth: Depth {
+                            test: DepthTest::Overwrite,
+                            write: false,
+                            ..Default::default()
+                        },
+                        blend: Blend::alpha_blending(),
+                        backface_culling: BackfaceCullingMode::CullClockwise,
+                        viewport: Some(viewport),
+                        ..Default::default()
+                    }
+                ).unwrap();
+            }
+
+            stopclock("ui-pass", timer, stats_text);
+
             label_renderer.clear();
             world_label_renderer.clear();
-
-            label_renderer.add_label(
-                &format!("{:?}", whos_turn),
-                Vec3::from_slice(&config.text.turnlabel.pos).as_f32(),
-                (config.text.turnlabel.size / config.text.size as f64) as f32,
-                &text_system,
-                &font_texture,
-            );
 
             if show_stats {
                 label_renderer.add_label(
@@ -1292,17 +1453,17 @@ fn run_game(
             }
 
             label_renderer.add_label(
-                &format!("White's coins: {}", white_coins),
-                vec3(-7.0, 4.0, 0.0),
-                0.2,
+                &white_coins.to_string(),
+                vec3(-5.8, 2.8, 0.0),
+                0.4,
                 &text_system,
                 &font_texture,
             );
 
             label_renderer.add_label(
-                &format!("Black's coins: {}", black_coins),
-                vec3(5.5, 4.0, 0.0),
-                0.2,
+                &black_coins.to_string(),
+                vec3(6.2, 2.8, 0.0),
+                0.4,
                 &text_system,
                 &font_texture,
             );
@@ -1373,21 +1534,9 @@ fn run_game(
                 writeln!(stats_text, "Resolution: {:?}", display.get_framebuffer_dimensions()).unwrap();
             }
 
-
-            let (vx, vy) = chessjam::viewport_stretch(
-                display.get_framebuffer_dimensions(),
-                viewport.width,
-                viewport.height,
-                ).as_tuple();
-
-            let text_scale = Mat4::scale(
-                vec4(2.0 / vx, 2.0 / vy, 1.0, 1.0)
-                    / Vec4::from_slice(&config.text.viewport).as_f32(),
-            );
-
             for &(ref label, pos, scale) in label_renderer.labels() {
                 let scale = Mat4::scale(vec4(scale, scale, 1.0, 1.0));
-                let label_transform = text_scale * Mat4::translation(pos) * scale;
+                let label_transform = text_projection * Mat4::translation(pos) * scale;
                 glium_text::draw(
                     &label,
                     &text_system,
@@ -1397,15 +1546,15 @@ fn run_game(
                 );
             }
 
-            let text_scale = Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
+            let world_text_projection = Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
 
             for &(ref label, pos, scale) in world_label_renderer.labels() {
                 let screen_pos = view_projection_matrix * pos.extend(1.0);
                 let screen_pos = (screen_pos / screen_pos.0[3]).retract();
                 let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
                 let scale = Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
-                let label_transform = text_scale * Mat4::translation(screen_pos) * scale;
-                let shadow_transform = text_scale * Mat4::translation(shadow_pos) * scale;
+                let label_transform = world_text_projection * Mat4::translation(screen_pos) * scale;
+                let shadow_transform = world_text_projection * Mat4::translation(shadow_pos) * scale;
 
                 glium_text::draw(
                     &label,

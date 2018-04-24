@@ -25,6 +25,11 @@ pub fn delta_time(previous_time: Instant) -> (f32, Instant) {
     (dt, now)
 }
 
+pub fn elapsed_time(start_time: Instant) -> f32 {
+    let (dt, _) = delta_time(start_time);
+    dt
+}
+
 pub fn viewport_rect(
     screen_dimensions: (u32, u32),
     target_aspect: f32,
