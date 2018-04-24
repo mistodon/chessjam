@@ -719,9 +719,15 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         pieces[moved_index].piece_type = promotion;
                     }
 
-                    // TODO(***realname***): When castling, this will do Bad Things.
                     if let Some(index) = taken_index {
-                        pieces.swap_remove(index);
+                        if pieces[index].color == whos_turn {
+                            // This must be a castle
+                            pieces[index].position = from;
+                            pieces[index].moved = true;
+                        }
+                        else {
+                            pieces.swap_remove(index);
+                        }
                     }
                 }
 
