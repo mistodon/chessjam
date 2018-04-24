@@ -394,6 +394,11 @@ fn run_game(
         asset_bytes!("assets/textures/marble_white.png").as_ref(),
     );
 
+    let plastic_marble_texture = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/marble_plastic.png").as_ref(),
+    );
+
     let skyball_texture = graphics::create_texture(
         display,
         asset_bytes!("assets/textures/skyball.png").as_ref(),
@@ -1021,9 +1026,9 @@ fn run_game(
                         mesh,
                         color,
                         mvp_matrix,
-                        colormap: &white_texture,
-                        texture_scale: vec3(1.0, 1.0, 1.0),
-                        texture_offset: vec3(0.0, 0.0, 0.0),
+                        colormap: &plastic_marble_texture,
+                        texture_scale: vec3(2.0, 2.0, 2.0),
+                        texture_offset: vec3(0.5, 0.0, 0.5),
                     });
                 }
             }
