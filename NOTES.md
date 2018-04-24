@@ -20,7 +20,7 @@ MVP
 [x] Allow selling chess pieces
 [x] Allow buying some chess pieces
 [x] AI for enemy player
-    [ ] AI for enemy buying and selling pieces
+    [x] AI for enemy buying and selling pieces
 
 ## Art
 [x] Basic 3D models for every piece

@@ -82,11 +82,12 @@ pub fn valid_square(tile: Vec2<i32>) -> bool {
     x >= 0 && x < 8 && y >= 0 && y < 8
 }
 
-pub fn decode_image(bytes: &[u8]) -> (Vec<u8>, (u32, u32))
-{
+pub fn decode_image(bytes: &[u8]) -> (Vec<u8>, (u32, u32)) {
     use image::{self, ImageFormat};
 
-    let image = image::load_from_memory_with_format(bytes, ImageFormat::PNG).unwrap().to_rgba();
+    let image = image::load_from_memory_with_format(bytes, ImageFormat::PNG)
+        .unwrap()
+        .to_rgba();
     let image_dimensions = image.dimensions();
     let raw_bytes = image.into_raw();
     (raw_bytes, image_dimensions)
