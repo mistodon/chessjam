@@ -3,3 +3,4 @@ assets/meshes/
 release_builds/
 /target
 **/*.rs.bk
+*.bak
