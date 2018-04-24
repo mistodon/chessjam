@@ -19,7 +19,8 @@ MVP
 [ ] Detect checkmate/stalemate and end game
 [x] Allow selling chess pieces
 [x] Allow buying some chess pieces
-[ ] AI for enemy player
+[x] AI for enemy player
+    [ ] AI for enemy buying and selling pieces
 
 ## Art
 [x] Basic 3D models for every piece
@@ -38,6 +39,7 @@ MVP
 [ ] Windows app
 
 ## Later on...
+[ ] Animation
 [ ] Sound effects
 [ ] Linux app
 [ ] 2-player support
