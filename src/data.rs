@@ -1,7 +1,5 @@
 use adequate_math::*;
-use glium::{
-    texture::SrgbTexture2d,
-};
+use glium::texture::SrgbTexture2d;
 use graphics::Mesh;
 
 
@@ -36,7 +34,7 @@ pub enum ChessColor {
     White,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PieceType {
     Pawn,
     Knight,

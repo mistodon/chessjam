@@ -1,4 +1,4 @@
-use glium::{Display, IndexBuffer, Program, VertexBuffer, texture::SrgbTexture2d};
+use glium::{texture::SrgbTexture2d, Display, IndexBuffer, Program, VertexBuffer};
 
 use adequate_math::*;
 
@@ -42,10 +42,9 @@ pub fn create_shader(display: &Display, shader_source: &str) -> Program {
 }
 
 
-pub fn create_texture(display: &Display, bytes: &[u8]) -> SrgbTexture2d
-{
-    use glium::texture::RawImage2d;
+pub fn create_texture(display: &Display, bytes: &[u8]) -> SrgbTexture2d {
     use chessjam;
+    use glium::texture::RawImage2d;
 
     let (raw_bytes, image_dimensions) = chessjam::decode_image(bytes);
 

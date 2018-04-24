@@ -23,73 +23,37 @@ mod ui;
 use std::time::Instant;
 
 use adequate_math::*;
-use glium::{
-    Display,
-    glutin::EventsLoop,
-};
+use glium::{glutin::EventsLoop, Display};
 
 use chessjam::config::Config;
 use data::*;
 use input::*;
 
 
-fn piece_price(piece_type: PieceType) -> &'static PiecePrice {
-    const PAWN: PiecePrice = PiecePrice {
-        buy_price: 4,
-        discount_price: 3,
-        sell_price: 2,
-        unmoved_sell_price: 4,
-    };
-    const KNIGHT: PiecePrice = PiecePrice {
-        buy_price: 5,
-        discount_price: 3,
-        sell_price: 3,
-        unmoved_sell_price: 3,
-    };
-    const ROOK: PiecePrice = PiecePrice {
-        buy_price: 6,
-        discount_price: 4,
-        sell_price: 3,
-        unmoved_sell_price: 3,
-    };
-    const BISHOP: PiecePrice = PiecePrice {
-        buy_price: 7,
-        discount_price: 5,
-        sell_price: 4,
-        unmoved_sell_price: 4,
-    };
-    const QUEEN: PiecePrice = PiecePrice {
-        buy_price: 9,
-        discount_price: 6,
-        sell_price: 5,
-        unmoved_sell_price: 5,
-    };
-
-    match piece_type {
-        PieceType::Pawn => &PAWN,
-        PieceType::Knight => &KNIGHT,
-        PieceType::Rook => &ROOK,
-        PieceType::Bishop => &BISHOP,
-        PieceType::Queen => &QUEEN,
-        PieceType::King => unreachable!("Do not buy or sell kings!")
-    }
-}
-
-fn sell_price(piece_type: PieceType, moved: bool) -> u32 {
-    let price = piece_price(piece_type);
-    if moved { price.sell_price } else { price.unmoved_sell_price }
-}
-
-
 fn random_piece(config: &Config) -> PieceType {
-    use rand::distributions::{Weighted, WeightedChoice, IndependentSample};
+    use rand::distributions::{IndependentSample, Weighted, WeightedChoice};
 
     let mut choices = [
-        Weighted { weight: config.weights.pawn as u32, item: PieceType::Pawn },
-        Weighted { weight: config.weights.knight as u32, item: PieceType::Knight },
-        Weighted { weight: config.weights.rook as u32, item: PieceType::Rook },
-        Weighted { weight: config.weights.bishop as u32, item: PieceType::Bishop },
-        Weighted { weight: config.weights.queen as u32, item: PieceType::Queen },
+        Weighted {
+            weight: config.weights.pawn as u32,
+            item: PieceType::Pawn,
+        },
+        Weighted {
+            weight: config.weights.knight as u32,
+            item: PieceType::Knight,
+        },
+        Weighted {
+            weight: config.weights.rook as u32,
+            item: PieceType::Rook,
+        },
+        Weighted {
+            weight: config.weights.bishop as u32,
+            item: PieceType::Bishop,
+        },
+        Weighted {
+            weight: config.weights.queen as u32,
+            item: PieceType::Queen,
+        },
     ];
     let wc = WeightedChoice::new(&mut choices);
     let mut rng = rand::thread_rng();
@@ -143,10 +107,7 @@ fn main() {
 
 
 #[allow(cyclomatic_complexity)]
-fn run_game(
-    display: &Display,
-    events_loop: &mut EventsLoop,
-) -> bool {
+fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     use std::io::Cursor;
 
     use glium::Rect;
@@ -400,7 +361,8 @@ fn run_game(
     let mut pieces_for_sale = [
         Some(random_piece(&config)),
         Some(random_piece(&config)),
-        Some(random_piece(&config))];
+        Some(random_piece(&config)),
+    ];
 
     let mut white_coins = 0;
     let mut black_coins = 0;
@@ -409,7 +371,14 @@ fn run_game(
     let mut control_state = ControlState::Idle;
     let mut valid_destinations: Vec<Vec2<i32>> = vec![];
     let mut whos_turn = ChessColor::White;
-    let ai_player: Option<ChessColor> = Some(ChessColor::Black);
+    let ai_player = Some(ChessColor::Black);
+    let mut ai_pawns_to_sell = {
+        use rand::distributions::{IndependentSample, Range};
+
+        let between = Range::new(4, 8);
+        let mut rng = rand::thread_rng();
+        between.ind_sample(&mut rng)
+    };
 
     let mut lit_render_buffer = Vec::new();
     let mut highlight_render_buffer = Vec::new();
@@ -537,7 +506,7 @@ fn run_game(
         // TODO(claire): Why are these two matrices not interchangeable?
         let text_projection = Mat4::scale(
             vec4(2.0 / vx, 2.0 / vy, 1.0, 1.0)
-            / Vec4::from_slice(&config.text.viewport).as_f32(),
+                / Vec4::from_slice(&config.text.viewport).as_f32(),
         );
 
         let ui_projection = matrix::ortho_projection(TARGET_ASPECT, 4.5, -1.0, 1.0);
@@ -590,47 +559,89 @@ fn run_game(
                     let piece_type = pieces_for_sale[index];
 
                     if let Some(piece_type) = piece_type {
-                        let y = match (whos_turn, piece_type) {
-                            (ChessColor::White, PieceType::Pawn) => 1,
-                            (ChessColor::White, _) => 0,
-                            (ChessColor::Black, PieceType::Pawn) => 6,
-                            (ChessColor::Black, _) => 7,
-                        };
-
-                        for x in 0..8 {
-                            if chess::piece_at(vec2(x, y), &pieces).is_none() {
-                                valid_purchase_placements.push(vec2(x, y));
-                            }
-                        }
+                        valid_purchase_placements =
+                            chess::valid_purchase_placements(
+                                &pieces, piece_type, whos_turn
+                            );
                     }
                 }
-                ControlState::Idle => ()
+                ControlState::Idle => (),
             }
 
 
             // Player actions
             let mut player_move = None;
             let mut piece_promotion = None;
+            let mut piece_to_sell = None;
+            let mut player_purchase = None;
 
             if ai_player == Some(whos_turn) {
-                let mov = chess::decide_move(&pieces, whos_turn);
-                let from = chessjam::grid_from_u8(mov.get_src_u8());
-                let to = chessjam::grid_from_u8(mov.get_dest_u8());
-                player_move = Some((from, to));
+                if ai_pawns_to_sell > 0 {
+                    let pawns = pieces
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, p)| {
+                            p.color == whos_turn && p.piece_type == PieceType::Pawn
+                        })
+                        .map(|(i, _)| i)
+                        .collect::<Vec<usize>>();
 
-                if mov.is_promo() {
-                    use pleco::PieceType::*;
-
-                    let piece = match mov.promo_piece() {
-                        Q => PieceType::Queen,
-                        R => PieceType::Rook,
-                        B => PieceType::Bishop,
-                        N => PieceType::Knight,
-                        P => PieceType::Pawn,
-                        _ => unreachable!("Invalid promotion was attempted."),
+                    let mut rng = rand::thread_rng();
+                    let index = rand::seq::sample_slice(&mut rng, &pawns, 1)[0];
+                    piece_to_sell = Some(index);
+                    ai_pawns_to_sell -= 1;
+                }
+                else {
+                    let coins = match whos_turn {
+                        ChessColor::Black => black_coins,
+                        ChessColor::White => white_coins,
                     };
 
-                    piece_promotion = Some(piece);
+                    let best_purchase = pieces_for_sale
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, piece)| piece.map(|p| (index, p)))
+                        .map(|(index, piece)| {
+                            (
+                                index,
+                                piece,
+                                chess::piece_price(piece).buy_price,
+                            )
+                        })
+                        .filter(|(_, _, price)| *price <= coins)
+                        .max_by_key(|(_, piece, _)| *piece)
+                        .map(|(index, _, _)| index);
+
+                    if let Some(index) = best_purchase {
+                        let piece_type = pieces_for_sale[index].unwrap();
+                        let valid_purchase_placements = chess::valid_purchase_placements(&pieces, piece_type, whos_turn);
+                        let mut rng = rand::thread_rng();
+                        let place = rand::seq::sample_slice(&mut rng, &valid_purchase_placements, 1)[0];
+                        player_purchase = Some((index, place));
+                    }
+                    else {
+                        let mov = chess::decide_move(&pieces, whos_turn);
+                        let from = chessjam::grid_from_u8(mov.get_src_u8());
+                        let to = chessjam::grid_from_u8(mov.get_dest_u8());
+                        player_move = Some((from, to));
+
+                        if mov.is_promo() {
+                            use pleco::PieceType::*;
+
+                            let piece = match mov.promo_piece() {
+                                Q => PieceType::Queen,
+                                R => PieceType::Rook,
+                                B => PieceType::Bishop,
+                                N => PieceType::Knight,
+                                P => PieceType::Pawn,
+                                _ => {
+                                    unreachable!("Invalid promotion was attempted.")
+                                }
+                            };
+
+                            piece_promotion = Some(piece);
+                        }
+                    }
                 }
             }
             else if mouse.pressed(Button::Left) {
@@ -638,10 +649,12 @@ fn run_game(
                     ControlState::Idle => {
                         for (index, &tile) in buy_tiles.iter().enumerate() {
                             if tile == tile_cursor {
-                                control_state = ControlState::SelectedPurchaseIndex(index);
+                                control_state =
+                                    ControlState::SelectedPurchaseIndex(index);
                             }
                         }
-                        control_state = match chess::piece_at(tile_cursor, &pieces) {
+                        control_state = match chess::piece_at(tile_cursor, &pieces)
+                        {
                             Some(index) => ControlState::SelectedPieceIndex(index),
                             _ => control_state,
                         };
@@ -652,40 +665,19 @@ fn run_game(
                             let to_tile = tile_cursor;
                             player_move = Some((from_tile, to_tile));
                         }
-                        else if tile_cursor == sell_tile && can_sell {
-                            if pieces[index].color == whos_turn {
-                                let refund = sell_price(pieces[index].piece_type, pieces[index].moved);
-
-                                match whos_turn {
-                                    ChessColor::White => white_coins += refund,
-                                    ChessColor::Black => black_coins += refund,
-                                }
-                                pieces.swap_remove(index);
-                            }
+                        else if tile_cursor == sell_tile && can_sell
+                            && pieces[index].color == whos_turn
+                        {
+                            piece_to_sell = Some(index);
                         }
                         control_state = ControlState::Idle;
                     }
                     ControlState::SelectedPurchaseIndex(index) => {
                         let piece_type = pieces_for_sale[index];
 
-                        if let Some(piece_type) = piece_type {
+                        if piece_type.is_some() {
                             if valid_purchase_placements.contains(&tile_cursor) {
-                                let price = piece_price(piece_type).buy_price;
-
-                                let wallet = match whos_turn {
-                                    ChessColor::White => &mut white_coins,
-                                    ChessColor::Black => &mut black_coins,
-                                };
-                                if price <= *wallet {
-                                    *wallet -= price;
-                                    pieces.push(Piece {
-                                        position: tile_cursor,
-                                        color: whos_turn,
-                                        piece_type,
-                                        moved: false,
-                                    });
-                                    pieces_for_sale[index] = None;
-                                }
+                                player_purchase = Some((index, tile_cursor));
                             }
                         }
 
@@ -755,6 +747,41 @@ fn run_game(
                     }
                 }
             }
+
+            if let Some(index) = piece_to_sell {
+                let refund = chess::sell_price(
+                    pieces[index].piece_type,
+                    pieces[index].moved,
+                );
+
+                match whos_turn {
+                    ChessColor::White => white_coins += refund,
+                    ChessColor::Black => black_coins += refund,
+                }
+                pieces.swap_remove(index);
+            }
+
+            if let Some((index, place)) = player_purchase {
+                let piece_type = pieces_for_sale[index].unwrap();
+
+                let price =
+                    chess::piece_price(piece_type).buy_price;
+
+                let wallet = match whos_turn {
+                    ChessColor::White => &mut white_coins,
+                    ChessColor::Black => &mut black_coins,
+                };
+                if price <= *wallet {
+                    *wallet -= price;
+                    pieces.push(Piece {
+                        position: place,
+                        color: whos_turn,
+                        piece_type,
+                        moved: false,
+                    });
+                    pieces_for_sale[index] = None;
+                }
+            }
         }
 
         stopclock("update", timer, stats_text);
@@ -781,10 +808,10 @@ fn run_game(
             for y in 0..8 {
                 for x in 0..8 {
                     let position = vec3(-3.5, 0.0, -3.5) + vec3(x, 0, y).as_f32();
-//                     let color = match (x + y) % 2 {
-//                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
-//                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
-//                     };
+                    //                     let color = match (x + y) % 2 {
+                    //                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
+                    //                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
+                    //                     };
                     let texture = match (x + y) % 2 {
                         0 => &black_marble_texture,
                         _ => &white_marble_texture,
@@ -884,7 +911,8 @@ fn run_game(
             lit_render_buffer.push(RenderCommand {
                 mesh: &table_mesh,
                 color: vec4(1.0, 1.0, 1.0, 1.0),
-                mvp_matrix: view_projection_matrix * Mat4::translation(vec3(0.0, -0.2, 0.0)),
+                mvp_matrix: view_projection_matrix
+                    * Mat4::translation(vec3(0.0, -0.2, 0.0)),
                 colormap: &wood_texture,
                 texture_scale: vec3(1.0 / 32.0, 1.0, 1.0 / 16.0),
                 texture_offset: vec3(0.5, 0.0, 0.5),
@@ -894,9 +922,13 @@ fn run_game(
             let height_offset = vec3(0.0, 0.2, 0.0);
 
             let selection_tile = match control_state {
-                ControlState::SelectedPieceIndex(index) => Some(pieces[index].position),
-                ControlState::SelectedPurchaseIndex(index) => Some(buy_tiles[index]),
-                ControlState::Idle => None
+                ControlState::SelectedPieceIndex(index) => {
+                    Some(pieces[index].position)
+                }
+                ControlState::SelectedPurchaseIndex(index) => {
+                    Some(buy_tiles[index])
+                }
+                ControlState::Idle => None,
             };
 
             if let Some(position) = selection_tile {
@@ -978,19 +1010,21 @@ fn run_game(
                 ..Default::default()
             };
 
-            let skyball_transform = view_projection_matrix
-                * Mat4::scale(vec4(40.0, 40.0, 40.0, 1.0));
+            let skyball_transform =
+                view_projection_matrix * Mat4::scale(vec4(40.0, 40.0, 40.0, 1.0));
 
-            frame.draw(
-                &skyball_mesh.vertices,
-                &skyball_mesh.indices,
-                &skyball_shader,
-                &uniform!{
-                    transform: skyball_transform.0,
-                    colormap: &skyball_texture,
-                },
-                &sky_draw_params
-            ).unwrap();
+            frame
+                .draw(
+                    &skyball_mesh.vertices,
+                    &skyball_mesh.indices,
+                    &skyball_shader,
+                    &uniform!{
+                        transform: skyball_transform.0,
+                        colormap: &skyball_texture,
+                    },
+                    &sky_draw_params,
+                )
+                .unwrap();
 
             let draw_params = DrawParameters {
                 depth: Depth {
@@ -1042,7 +1076,8 @@ fn run_game(
                 },
                 color_mask: (false, false, false, false),
                 stencil: Stencil {
-                    depth_pass_operation_counter_clockwise: StencilOperation::Increment,
+                    depth_pass_operation_counter_clockwise:
+                        StencilOperation::Increment,
                     ..Default::default()
                 },
                 backface_culling: BackfaceCullingMode::CullClockwise,
@@ -1058,8 +1093,7 @@ fn run_game(
                 },
                 color_mask: (false, false, false, false),
                 stencil: Stencil {
-                    depth_pass_operation_clockwise:
-                        StencilOperation::Decrement,
+                    depth_pass_operation_clockwise: StencilOperation::Decrement,
                     ..Default::default()
                 },
                 backface_culling: BackfaceCullingMode::CullCounterClockwise,
@@ -1189,7 +1223,7 @@ fn run_game(
                 let piece_for_sale = pieces_for_sale[index];
 
                 if let Some(piece_for_sale) = piece_for_sale {
-                    let price = piece_price(piece_for_sale).buy_price;
+                    let price = chess::piece_price(piece_for_sale).buy_price;
 
                     price_tag_renderer.add_label(
                         &format!("{}", price),
@@ -1197,14 +1231,14 @@ fn run_game(
                         0.05,
                         &text_system,
                         &font_texture,
-                        );
+                    );
                 }
             }
 
             if let ControlState::SelectedPieceIndex(index) = control_state {
                 if can_sell {
                     let piece = &pieces[index];
-                    let refund = sell_price(piece.piece_type, piece.moved);
+                    let refund = chess::sell_price(piece.piece_type, piece.moved);
 
                     price_tag_renderer.add_label(
                         &format!("{} Sell?", refund),
@@ -1212,7 +1246,7 @@ fn run_game(
                         0.05,
                         &text_system,
                         &font_texture,
-                        );
+                    );
                 }
             }
 
@@ -1228,45 +1262,62 @@ fn run_game(
                 ..Default::default()
             };
 
-            let world_text_projection = Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
+            let world_text_projection =
+                Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
 
             for &(ref label, pos, scale) in price_tag_renderer.labels() {
                 let screen_pos = view_projection_matrix * pos.extend(1.0);
                 let screen_pos = (screen_pos / screen_pos.0[3]).retract();
                 let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
 
-                let icon_scale = Mat4::scale(vec4(1.2 * scale / TARGET_ASPECT, 1.2 * scale, 1.0, 1.0));
-                let scale = Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
-                let label_transform = world_text_projection * Mat4::translation(screen_pos) * scale;
-                let shadow_transform = world_text_projection * Mat4::translation(shadow_pos) * scale;
-                let icon_transform = world_text_projection * Mat4::translation(screen_pos + vec3(-0.02, 0.02, 0.0)) * icon_scale;
-                let shadow_icon_transform = world_text_projection * Mat4::translation(shadow_pos + vec3(-0.02, 0.02, 0.0)) * icon_scale;
+                let icon_scale = Mat4::scale(vec4(
+                    1.2 * scale / TARGET_ASPECT,
+                    1.2 * scale,
+                    1.0,
+                    1.0,
+                ));
+                let scale =
+                    Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
+                let label_transform =
+                    world_text_projection * Mat4::translation(screen_pos) * scale;
+                let shadow_transform =
+                    world_text_projection * Mat4::translation(shadow_pos) * scale;
+                let icon_transform = world_text_projection
+                    * Mat4::translation(screen_pos + vec3(-0.02, 0.02, 0.0))
+                    * icon_scale;
+                let shadow_icon_transform = world_text_projection
+                    * Mat4::translation(shadow_pos + vec3(-0.02, 0.02, 0.0))
+                    * icon_scale;
 
                 let color = vec4(0.5, 1.0, 0.5, 1.0_f32);
 
-                frame.draw(
-                    &quad_mesh.vertices,
-                    &quad_mesh.indices,
-                    &ui_shader,
-                    &uniform!{
-                        transform: shadow_icon_transform.0,
-                        colormap: &coin_icon,
-                        tint: [0.0, 0.0, 0.0, 0.6_f32],
-                    },
-                    &ui_draw_parameters,
-                ).unwrap();
+                frame
+                    .draw(
+                        &quad_mesh.vertices,
+                        &quad_mesh.indices,
+                        &ui_shader,
+                        &uniform!{
+                            transform: shadow_icon_transform.0,
+                            colormap: &coin_icon,
+                            tint: [0.0, 0.0, 0.0, 0.6_f32],
+                        },
+                        &ui_draw_parameters,
+                    )
+                    .unwrap();
 
-                frame.draw(
-                    &quad_mesh.vertices,
-                    &quad_mesh.indices,
-                    &ui_shader,
-                    &uniform!{
-                        transform: icon_transform.0,
-                        colormap: &coin_icon,
-                        tint: color.0,
-                    },
-                    &ui_draw_parameters,
-                ).unwrap();
+                frame
+                    .draw(
+                        &quad_mesh.vertices,
+                        &quad_mesh.indices,
+                        &ui_shader,
+                        &uniform!{
+                            transform: icon_transform.0,
+                            colormap: &coin_icon,
+                            tint: color.0,
+                        },
+                        &ui_draw_parameters,
+                    )
+                    .unwrap();
 
                 glium_text::draw(
                     &label,
@@ -1333,22 +1384,23 @@ fn run_game(
             ];
 
             for command in &ui_render_commands {
-                let transform = ui_projection
-                    * Mat4::translation(command.pos)
+                let transform = ui_projection * Mat4::translation(command.pos)
                     * matrix::euler_rotation(vec3(0.0, 0.0, command.angle))
                     * Mat4::scale(vec4(command.scale, command.scale, 1.0, 1.0));
 
-                frame.draw(
-                    &quad_mesh.vertices,
-                    &quad_mesh.indices,
-                    &ui_shader,
-                    &uniform!{
-                        colormap: command.colormap,
-                        tint: [1.0, 1.0, 1.0, 1.0_f32],
-                        transform: transform.0,
-                    },
-                    &ui_draw_parameters,
-                ).unwrap();
+                frame
+                    .draw(
+                        &quad_mesh.vertices,
+                        &quad_mesh.indices,
+                        &ui_shader,
+                        &uniform!{
+                            colormap: command.colormap,
+                            tint: [1.0, 1.0, 1.0, 1.0_f32],
+                            transform: transform.0,
+                        },
+                        &ui_draw_parameters,
+                    )
+                    .unwrap();
             }
 
             let coin_positions = &[vec3(-6.45, 3.0, 0.0), vec3(5.55, 3.0, 0.0)];
@@ -1356,40 +1408,41 @@ fn run_game(
             for &coin_pos in coin_positions {
                 let coin_scale = 0.6;
 
-                let transform = ui_projection
-                    * Mat4::translation(coin_pos)
+                let transform = ui_projection * Mat4::translation(coin_pos)
                     * matrix::euler_rotation(vec3(0.0, -2.0 * elapsed, 0.0))
                     * Mat4::scale(vec4(coin_scale, coin_scale, coin_scale, 1.0));
 
-                frame.draw(
-                    &coin_mesh.vertices,
-                    &coin_mesh.indices,
-                    &model_shader,
-                    &uniform!{
-                        transform: transform.0,
-                        normal_matrix: Mat3::<f32>::identity().0,
-                        texture_scale: vec3(1.0, 1.0, 1.0_f32).0,
-                        texture_offset: vec3(0.5, 0.5, 0.25_f32).0,
-                        colormap: &checker_texture,
-                        light_direction_matrix: light_direction_matrix.0,
-                        light_color_matrix: light_color_matrix.0,
-                        albedo: vec4(1.2, 1.2, 1.2, 1.0_f32).0,
-                        view_vector: vec3(0.0, 0.0, 1.0_f32).0,
-                        specular_power: config.light.specular_power as f32,
-                        specular_color: specular_color.0,
-                    },
-                    &DrawParameters {
-                        depth: Depth {
-                            test: DepthTest::Overwrite,
-                            write: false,
+                frame
+                    .draw(
+                        &coin_mesh.vertices,
+                        &coin_mesh.indices,
+                        &model_shader,
+                        &uniform!{
+                            transform: transform.0,
+                            normal_matrix: Mat3::<f32>::identity().0,
+                            texture_scale: vec3(1.0, 1.0, 1.0_f32).0,
+                            texture_offset: vec3(0.5, 0.5, 0.25_f32).0,
+                            colormap: &checker_texture,
+                            light_direction_matrix: light_direction_matrix.0,
+                            light_color_matrix: light_color_matrix.0,
+                            albedo: vec4(1.2, 1.2, 1.2, 1.0_f32).0,
+                            view_vector: vec3(0.0, 0.0, 1.0_f32).0,
+                            specular_power: config.light.specular_power as f32,
+                            specular_color: specular_color.0,
+                        },
+                        &DrawParameters {
+                            depth: Depth {
+                                test: DepthTest::Overwrite,
+                                write: false,
+                                ..Default::default()
+                            },
+                            blend: Blend::alpha_blending(),
+                            backface_culling: BackfaceCullingMode::CullClockwise,
+                            viewport: Some(viewport),
                             ..Default::default()
                         },
-                        blend: Blend::alpha_blending(),
-                        backface_culling: BackfaceCullingMode::CullClockwise,
-                        viewport: Some(viewport),
-                        ..Default::default()
-                    }
-                ).unwrap();
+                    )
+                    .unwrap();
             }
 
             stopclock("ui-pass", timer, stats_text);
@@ -1403,7 +1456,7 @@ fn run_game(
                     0.1,
                     &text_system,
                     &font_texture,
-                    );
+                );
             }
 
             label_renderer.add_label(
@@ -1432,14 +1485,14 @@ fn run_game(
                         0.1,
                         &text_system,
                         &font_texture,
-                        );
+                    );
                 }
             }
 
             let status_label = match game_outcome {
                 GameOutcome::Ongoing => "".into(),
                 GameOutcome::Stalemate => "Stalemate".into(),
-                GameOutcome::Victory(x) => format!("Checkmate: {:?} wins", x)
+                GameOutcome::Victory(x) => format!("Checkmate: {:?} wins", x),
             };
 
             label_renderer.add_label(
@@ -1448,18 +1501,23 @@ fn run_game(
                 0.5,
                 &text_system,
                 &font_texture,
-                );
+            );
 
             stats_text.clear();
             {
                 use std::fmt::Write;
 
-                writeln!(stats_text, "Resolution: {:?}", display.get_framebuffer_dimensions()).unwrap();
+                writeln!(
+                    stats_text,
+                    "Resolution: {:?}",
+                    display.get_framebuffer_dimensions()
+                ).unwrap();
             }
 
             for &(ref label, pos, scale) in label_renderer.labels() {
                 let scale = Mat4::scale(vec4(scale, scale, 1.0, 1.0));
-                let label_transform = text_projection * Mat4::translation(pos) * scale;
+                let label_transform =
+                    text_projection * Mat4::translation(pos) * scale;
                 glium_text::draw(
                     &label,
                     &text_system,
