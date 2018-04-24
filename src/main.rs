@@ -14,6 +14,8 @@ extern crate pleco_engine;
 extern crate rand;
 extern crate wavefront_obj;
 
+mod chess;
+mod data;
 mod graphics;
 mod input;
 mod ui;
@@ -23,77 +25,12 @@ use std::time::Instant;
 use adequate_math::*;
 use glium::{
     Display,
-    texture::SrgbTexture2d,
     glutin::EventsLoop,
 };
 
 use chessjam::config::Config;
-use graphics::Mesh;
+use data::*;
 use input::*;
-
-
-struct RenderCommand<'a> {
-    mesh: &'a Mesh,
-    color: Vec4<f32>,
-    mvp_matrix: Mat4<f32>,
-    colormap: &'a SrgbTexture2d,
-    texture_scale: Vec3<f32>,
-    texture_offset: Vec3<f32>,
-}
-
-struct UiRenderCommand<'a> {
-    colormap: &'a SrgbTexture2d,
-    pos: Vec3<f32>,
-    scale: f32,
-    angle: f32,
-}
-
-
-#[derive(Debug)]
-pub struct Piece {
-    pub position: Vec2<i32>,
-    pub color: ChessColor,
-    pub piece_type: PieceType,
-    pub moved: bool,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ChessColor {
-    Black,
-    White,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PieceType {
-    Pawn,
-    Knight,
-    Rook,
-    Bishop,
-    Queen,
-    King,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum GameOutcome {
-    Ongoing,
-    Stalemate,
-    Victory(ChessColor),
-}
-
-#[derive(Debug, Default)]
-pub struct PiecePrice {
-    pub buy_price: u32,
-    pub discount_price: u32,
-    pub sell_price: u32,
-    pub unmoved_sell_price: u32,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum ControlState {
-    Idle,
-    SelectedPieceIndex(usize),
-    SelectedPurchaseIndex(usize),
-}
 
 
 fn piece_price(piece_type: PieceType) -> &'static PiecePrice {
@@ -169,81 +106,6 @@ fn stopclock(title: &str, last_tick: &mut Instant, buffer: &mut String) {
     *last_tick = now;
     let elapsed_millis = f64::from(elapsed.subsec_nanos()) / 1_000_000.0;
     writeln!(buffer, "{}: {:.3}ms", title, elapsed_millis).unwrap();
-}
-
-
-fn piece_at(position: Vec2<i32>, pieces: &[Piece]) -> Option<usize> {
-    let mut result = None;
-    for (index, piece) in pieces.iter().enumerate() {
-        if piece.position == position {
-            result = Some(index);
-        }
-    }
-    result
-}
-
-
-fn generate_fen(pieces: &[Piece], whos_turn: ChessColor) -> String {
-    use std::fmt::Write;
-
-    let mut buffer = String::with_capacity(128);
-    let mut empty_stretch = 0;
-
-    for y in 0..8 {
-        for x in 0..8 {
-            match piece_at(vec2(x, 7 - y).as_i32(), pieces) {
-                Some(index) => {
-                    use ChessColor::*;
-                    use PieceType::*;
-
-                    if empty_stretch > 0 {
-                        write!(buffer, "{}", empty_stretch)
-                            .unwrap();
-                        empty_stretch = 0;
-                    }
-
-                    let piece = &pieces[index];
-                    let ch =
-                        match (piece.color, piece.piece_type) {
-                            (White, Pawn) => "P",
-                            (White, King) => "K",
-                            (White, Queen) => "Q",
-                            (White, Bishop) => "B",
-                            (White, Rook) => "R",
-                            (White, Knight) => "N",
-                            (Black, Pawn) => "p",
-                            (Black, King) => "k",
-                            (Black, Queen) => "q",
-                            (Black, Bishop) => "b",
-                            (Black, Rook) => "r",
-                            (Black, Knight) => "n",
-                        };
-                    buffer.push_str(ch);
-                }
-                None => {
-                    empty_stretch += 1;
-                }
-            }
-        }
-
-        if empty_stretch > 0 {
-            write!(buffer, "{}", empty_stretch).unwrap();
-            empty_stretch = 0;
-        }
-
-        if y < 7 {
-            buffer.push_str("/");
-        }
-    }
-
-    match whos_turn {
-        ChessColor::White => buffer.push_str(" w "),
-        ChessColor::Black => buffer.push_str(" b "),
-    }
-
-    buffer.push_str("KQkq - 0 1");
-
-    buffer
 }
 
 
@@ -736,7 +598,7 @@ fn run_game(
                         };
 
                         for x in 0..8 {
-                            if piece_at(vec2(x, y), &pieces).is_none() {
+                            if chess::piece_at(vec2(x, y), &pieces).is_none() {
                                 valid_purchase_placements.push(vec2(x, y));
                             }
                         }
@@ -751,21 +613,7 @@ fn run_game(
             let mut piece_promotion = None;
 
             if ai_player == Some(whos_turn) {
-                use pleco_engine::{
-                    engine::PlecoSearcher,
-                    time::uci_timer::PreLimits,
-                };
-
-                let fen = generate_fen(&pieces, whos_turn);
-                let board = Board::from_fen(&fen).unwrap();
-
-                let mut limits = PreLimits::blank();
-                limits.depth = Some(3);
-                let mut searcher = PlecoSearcher::init(false);
-
-                searcher.search(&board, &limits);
-
-                let mov = searcher.await_move();
+                let mov = chess::decide_move(&pieces, whos_turn);
                 let from = chessjam::grid_from_u8(mov.get_src_u8());
                 let to = chessjam::grid_from_u8(mov.get_dest_u8());
                 player_move = Some((from, to));
@@ -793,7 +641,7 @@ fn run_game(
                                 control_state = ControlState::SelectedPurchaseIndex(index);
                             }
                         }
-                        control_state = match piece_at(tile_cursor, &pieces) {
+                        control_state = match chess::piece_at(tile_cursor, &pieces) {
                             Some(index) => ControlState::SelectedPieceIndex(index),
                             _ => control_state,
                         };
@@ -853,7 +701,7 @@ fn run_game(
                     let (px, py) = piece.position.as_tuple();
                     let piece_pos_u8 = (py * 8 + px) as u8;
 
-                    let fen = generate_fen(&pieces, whos_turn);
+                    let fen = chess::generate_fen(&pieces, whos_turn);
                     let board = Board::from_fen(&fen).unwrap();
                     let moves = board.generate_moves();
 
@@ -870,8 +718,8 @@ fn run_game(
 
             if let Some((from, to)) = player_move {
                 {
-                    let moved_index = piece_at(from, &pieces).unwrap();
-                    let taken_index = piece_at(to, &pieces);
+                    let moved_index = chess::piece_at(from, &pieces).unwrap();
+                    let taken_index = chess::piece_at(to, &pieces);
                     pieces[moved_index].position = to;
                     pieces[moved_index].moved = true;
 
@@ -885,7 +733,7 @@ fn run_game(
                     }
                 }
 
-                let fen = generate_fen(&pieces, whos_turn);
+                let fen = chess::generate_fen(&pieces, whos_turn);
                 let board = Board::from_fen(&fen).unwrap();
 
                 if board.checkmate() {
