@@ -23,7 +23,7 @@ place = [1.0, 1.0, 0.0, 0.75]
 forsale = [0.5, 0.5, 1.0, 1.0]
 
 [text]
-size = 64
+size = 72
 viewport = [16.0, 9.0, 1.0, 1.0]
 
 [text.turnlabel]
