@@ -16,11 +16,12 @@ void main()
 #version 330
 
 uniform sampler2D colormap;
+uniform vec4 tint;
 
 in vec2 texcoord;
 out vec4 color;
 
 void main()
 {
-    color = texture(colormap, texcoord);
+    color = texture(colormap, texcoord) * tint;
 }

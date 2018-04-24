@@ -414,6 +414,11 @@ fn run_game(
         asset_bytes!("assets/textures/ui_tile_black.png").as_ref(),
     );
 
+    let coin_icon = graphics::create_texture(
+        display,
+        asset_bytes!("assets/textures/coin_icon.png").as_ref(),
+    );
+
 
     let text_system = TextSystem::new(display);
     let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
@@ -421,7 +426,7 @@ fn run_game(
         FontTexture::new(display, font, config.text.size as u32).unwrap();
 
     let mut label_renderer = LabelRenderer::new();
-    let mut world_label_renderer = LabelRenderer::new();
+    let mut price_tag_renderer = LabelRenderer::new();
 
     let mut frame_time = Instant::now();
     let mut keyboard = Keyboard::default();
@@ -1324,6 +1329,112 @@ fn run_game(
 
             stopclock("highlight-pass", timer, stats_text);
 
+
+            price_tag_renderer.clear();
+
+            for (index, &tile) in buy_tiles.iter().enumerate() {
+                let piece_for_sale = pieces_for_sale[index];
+
+                if let Some(piece_for_sale) = piece_for_sale {
+                    let price = piece_price(piece_for_sale).buy_price;
+
+                    price_tag_renderer.add_label(
+                        &format!("{}", price),
+                        chessjam::grid_to_world(tile) + vec3(0.0, 1.75, 0.0),
+                        0.05,
+                        &text_system,
+                        &font_texture,
+                        );
+                }
+            }
+
+            if let ControlState::SelectedPieceIndex(index) = control_state {
+                if can_sell {
+                    let piece = &pieces[index];
+                    let refund = sell_price(piece.piece_type, piece.moved);
+
+                    price_tag_renderer.add_label(
+                        &format!("{} Sell?", refund),
+                        chessjam::grid_to_world(sell_tile) + vec3(0.0, 2.0, 0.0),
+                        0.05,
+                        &text_system,
+                        &font_texture,
+                        );
+                }
+            }
+
+            let ui_draw_parameters = DrawParameters {
+                depth: Depth {
+                    test: DepthTest::Overwrite,
+                    write: false,
+                    ..Default::default()
+                },
+                blend: Blend::alpha_blending(),
+                backface_culling: BackfaceCullingMode::CullClockwise,
+                viewport: Some(viewport),
+                ..Default::default()
+            };
+
+            let world_text_projection = Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
+
+            for &(ref label, pos, scale) in price_tag_renderer.labels() {
+                let screen_pos = view_projection_matrix * pos.extend(1.0);
+                let screen_pos = (screen_pos / screen_pos.0[3]).retract();
+                let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
+
+                let icon_scale = Mat4::scale(vec4(1.2 * scale / TARGET_ASPECT, 1.2 * scale, 1.0, 1.0));
+                let scale = Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
+                let label_transform = world_text_projection * Mat4::translation(screen_pos) * scale;
+                let shadow_transform = world_text_projection * Mat4::translation(shadow_pos) * scale;
+                let icon_transform = world_text_projection * Mat4::translation(screen_pos + vec3(-0.02, 0.02, 0.0)) * icon_scale;
+                let shadow_icon_transform = world_text_projection * Mat4::translation(shadow_pos + vec3(-0.02, 0.02, 0.0)) * icon_scale;
+
+                let color = vec4(0.5, 1.0, 0.5, 1.0_f32);
+
+                frame.draw(
+                    &quad_mesh.vertices,
+                    &quad_mesh.indices,
+                    &ui_shader,
+                    &uniform!{
+                        transform: shadow_icon_transform.0,
+                        colormap: &coin_icon,
+                        tint: [0.0, 0.0, 0.0, 0.6_f32],
+                    },
+                    &ui_draw_parameters,
+                ).unwrap();
+
+                frame.draw(
+                    &quad_mesh.vertices,
+                    &quad_mesh.indices,
+                    &ui_shader,
+                    &uniform!{
+                        transform: icon_transform.0,
+                        colormap: &coin_icon,
+                        tint: color.0,
+                    },
+                    &ui_draw_parameters,
+                ).unwrap();
+
+                glium_text::draw(
+                    &label,
+                    &text_system,
+                    &mut frame,
+                    shadow_transform.0,
+                    (0.0, 0.0, 0.0, 0.6),
+                );
+
+                glium_text::draw(
+                    &label,
+                    &text_system,
+                    &mut frame,
+                    label_transform.0,
+                    color.as_tuple(),
+                );
+            }
+
+
+            stopclock("world-text-pass", timer, stats_text);
+
             let (black_turn_y, white_turn_y) = match whos_turn {
                 ChessColor::Black => (4.6, 7.0),
                 ChessColor::White => (7.0, 4.6),
@@ -1380,19 +1491,10 @@ fn run_game(
                     &ui_shader,
                     &uniform!{
                         colormap: command.colormap,
+                        tint: [1.0, 1.0, 1.0, 1.0_f32],
                         transform: transform.0,
                     },
-                    &DrawParameters {
-                        depth: Depth {
-                            test: DepthTest::Overwrite,
-                            write: false,
-                            ..Default::default()
-                        },
-                        blend: Blend::alpha_blending(),
-                        backface_culling: BackfaceCullingMode::CullClockwise,
-                        viewport: Some(viewport),
-                        ..Default::default()
-                    }
+                    &ui_draw_parameters,
                 ).unwrap();
             }
 
@@ -1440,7 +1542,6 @@ fn run_game(
             stopclock("ui-pass", timer, stats_text);
 
             label_renderer.clear();
-            world_label_renderer.clear();
 
             if show_stats {
                 label_renderer.add_label(
@@ -1496,37 +1597,6 @@ fn run_game(
                 &font_texture,
                 );
 
-            for (index, &tile) in buy_tiles.iter().enumerate() {
-                let piece_for_sale = pieces_for_sale[index];
-
-                if let Some(piece_for_sale) = piece_for_sale {
-                    let price = piece_price(piece_for_sale).buy_price;
-
-                    world_label_renderer.add_label(
-                        &format!("${}", price),
-                        chessjam::grid_to_world(tile) + vec3(0.0, 2.0, 0.0),
-                        0.05,
-                        &text_system,
-                        &font_texture,
-                        );
-                }
-            }
-
-            if let ControlState::SelectedPieceIndex(index) = control_state {
-                if can_sell {
-                    let piece = &pieces[index];
-                    let refund = sell_price(piece.piece_type, piece.moved);
-
-                    world_label_renderer.add_label(
-                        &format!("+${} Sell?", refund),
-                        chessjam::grid_to_world(sell_tile) + vec3(0.0, 2.0, 0.0),
-                        0.05,
-                        &text_system,
-                        &font_texture,
-                        );
-                }
-            }
-
             stats_text.clear();
             {
                 use std::fmt::Write;
@@ -1543,33 +1613,6 @@ fn run_game(
                     &mut frame,
                     label_transform.0,
                     (1.0, 1.0, 1.0, 1.0),
-                );
-            }
-
-            let world_text_projection = Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
-
-            for &(ref label, pos, scale) in world_label_renderer.labels() {
-                let screen_pos = view_projection_matrix * pos.extend(1.0);
-                let screen_pos = (screen_pos / screen_pos.0[3]).retract();
-                let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
-                let scale = Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
-                let label_transform = world_text_projection * Mat4::translation(screen_pos) * scale;
-                let shadow_transform = world_text_projection * Mat4::translation(shadow_pos) * scale;
-
-                glium_text::draw(
-                    &label,
-                    &text_system,
-                    &mut frame,
-                    shadow_transform.0,
-                    (0.0, 0.0, 0.0, 0.6),
-                );
-
-                glium_text::draw(
-                    &label,
-                    &text_system,
-                    &mut frame,
-                    label_transform.0,
-                    (0.5, 1.0, 0.5, 1.0),
                 );
             }
 
