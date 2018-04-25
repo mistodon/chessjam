@@ -62,14 +62,18 @@ fn random_piece(config: &Config) -> PieceType {
 }
 
 
+#[allow(unused_variables)]
 fn stopclock(title: &str, last_tick: &mut Instant, buffer: &mut String) {
-    use std::fmt::Write;
+    #[cfg(debug_assertions)]
+    {
+        use std::fmt::Write;
 
-    let now = Instant::now();
-    let elapsed = now.duration_since(*last_tick);
-    *last_tick = now;
-    let elapsed_millis = f64::from(elapsed.subsec_nanos()) / 1_000_000.0;
-    writeln!(buffer, "{}: {:.3}ms", title, elapsed_millis).unwrap();
+        let now = Instant::now();
+        let elapsed = now.duration_since(*last_tick);
+        *last_tick = now;
+        let elapsed_millis = f64::from(elapsed.subsec_nanos()) / 1_000_000.0;
+        writeln!(buffer, "{}: {:.3}ms", title, elapsed_millis).unwrap();
+    }
 }
 
 
@@ -1556,16 +1560,19 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             }
 
 
-            if show_stats {
-                for (i, line) in stats_text.lines().enumerate() {
-                    let y = -0.2 * i as f32;
-                    label_renderer.add_label(
-                        line,
-                        vec3(-7.9, y, 0.0),
-                        0.1,
-                        &text_system,
-                        &font_texture,
-                    );
+            #[cfg(debug_assertions)]
+            {
+                if show_stats {
+                    for (i, line) in stats_text.lines().enumerate() {
+                        let y = -0.2 * i as f32;
+                        label_renderer.add_label(
+                            line,
+                            vec3(-7.9, y, 0.0),
+                            0.1,
+                            &text_system,
+                            &font_texture,
+                            );
+                    }
                 }
             }
 
