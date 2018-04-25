@@ -29,6 +29,7 @@ uniform mat4 light_color_matrix;
 uniform vec4 albedo;
 uniform float specular_power;
 uniform vec3 specular_color;
+uniform float saturation;
 
 // TODO(claire): Use per-fragment view vector
 uniform vec3 view_vector;
@@ -62,5 +63,8 @@ void main()
     float conservation = (specular_power + 8.0) / eight_pi;
     float light = pow(h_dot_n, specular_power) * conservation;
     color += vec4(specular_color * light, 0.0);
+
+    float grey = dot(color.rgb, vec3(0.3, 0.6, 0.1));
+    color = vec4(mix(vec3(grey, grey, grey), color.rgb, saturation), color.a);
 }
 
