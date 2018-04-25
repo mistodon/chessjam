@@ -28,6 +28,12 @@ pub struct Piece {
     pub moved: bool,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct PieceForSale {
+    pub piece_type: PieceType,
+    pub discounted: bool,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ChessColor {
     Black,
