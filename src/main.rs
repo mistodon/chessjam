@@ -664,7 +664,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         }
                         control_state = match chess::piece_at(tile_cursor, &pieces)
                         {
-                            Some(index) => ControlState::SelectedPieceIndex(index),
+                            Some(index) if pieces[index].color == whos_turn => ControlState::SelectedPieceIndex(index),
                             _ => control_state,
                         };
                     }
