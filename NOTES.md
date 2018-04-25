@@ -16,7 +16,7 @@ MVP
 
 ## Gameplay
 [x] Basic chess rules
-[ ] Detect checkmate/stalemate and end game
+[x] Detect checkmate/stalemate and end game
 [x] Allow selling chess pieces
 [x] Allow buying some chess pieces
 [x] AI for enemy player
