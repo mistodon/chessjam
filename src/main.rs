@@ -644,7 +644,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     }
                 }
             }
-            else if mouse.pressed(Button::Left) {
+            else if mouse.pressed(Button::Left) && game_outcome == GameOutcome::Ongoing {
                 match control_state {
                     ControlState::Idle => {
                         for (index, &tile) in buy_tiles.iter().enumerate() {
@@ -731,20 +731,21 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     }
                 }
 
-                let fen = chess::generate_fen(&pieces, whos_turn);
-                let board = Board::from_fen(&fen).unwrap();
-
-                if board.checkmate() {
-                    game_outcome = GameOutcome::Victory(whos_turn);
-                }
-                else if board.stalemate() {
-                    game_outcome = GameOutcome::Stalemate;
-                }
-
+                let prev_turn = whos_turn;
                 whos_turn = match whos_turn {
                     ChessColor::White => ChessColor::Black,
                     ChessColor::Black => ChessColor::White,
                 };
+
+                let fen = chess::generate_fen(&pieces, whos_turn);
+                let board = Board::from_fen(&fen).unwrap();
+
+                if board.checkmate() {
+                    game_outcome = GameOutcome::Victory(prev_turn);
+                }
+                else if board.stalemate() {
+                    game_outcome = GameOutcome::Stalemate;
+                }
 
                 // Restock shop
                 for piece in &mut pieces_for_sale {
@@ -806,6 +807,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             let specular_color =
                 Vec3::from_slice(&config.light.specular_color).as_f32();
+
+            let saturation: f32 = match game_outcome {
+                GameOutcome::Ongoing => 1.0,
+                _ => 0.0,
+            };
 
             lit_render_buffer.clear();
             highlight_render_buffer.clear();
@@ -1027,6 +1033,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     &uniform!{
                         transform: skyball_transform.0,
                         colormap: &skyball_texture,
+                        saturation: saturation,
                     },
                     &sky_draw_params,
                 )
@@ -1066,6 +1073,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             view_vector: view_vector.0,
                             specular_power: config.light.specular_power as f32,
                             specular_color: [0.0, 0.0, 0.0_f32],
+                            saturation: saturation,
                         },
                         &draw_params,
                     )
@@ -1171,6 +1179,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             view_vector: view_vector.0,
                             specular_power: config.light.specular_power as f32,
                             specular_color: specular_color.0,
+                            saturation: saturation,
                         },
                         &fully_lit_draw_params,
                     )
@@ -1213,6 +1222,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                 view_vector: view_vector.0,
                                 specular_power: config.light.specular_power as f32,
                                 specular_color: [0.0, 0.0, 0.0_f32],
+                                saturation: saturation,
                             },
                             &highlight_draw_params,
                         )
@@ -1271,123 +1281,142 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             let world_text_projection =
                 Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
 
-            for &(ref label, pos, scale) in price_tag_renderer.labels() {
-                let screen_pos = view_projection_matrix * pos.extend(1.0);
-                let screen_pos = (screen_pos / screen_pos.0[3]).retract();
-                let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
+            if game_outcome == GameOutcome::Ongoing {
+                for &(ref label, pos, scale) in price_tag_renderer.labels() {
+                    let screen_pos = view_projection_matrix * pos.extend(1.0);
+                    let screen_pos = (screen_pos / screen_pos.0[3]).retract();
+                    let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
 
-                let icon_scale = Mat4::scale(vec4(
-                    1.2 * scale / TARGET_ASPECT,
-                    1.2 * scale,
-                    1.0,
-                    1.0,
-                ));
-                let scale =
-                    Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
-                let label_transform =
-                    world_text_projection * Mat4::translation(screen_pos) * scale;
-                let shadow_transform =
-                    world_text_projection * Mat4::translation(shadow_pos) * scale;
-                let icon_transform = world_text_projection
-                    * Mat4::translation(screen_pos + vec3(-0.02, 0.02, 0.0))
-                    * icon_scale;
-                let shadow_icon_transform = world_text_projection
-                    * Mat4::translation(shadow_pos + vec3(-0.02, 0.02, 0.0))
-                    * icon_scale;
+                    let icon_scale = Mat4::scale(vec4(
+                            1.2 * scale / TARGET_ASPECT,
+                            1.2 * scale,
+                            1.0,
+                            1.0,
+                            ));
+                    let scale =
+                        Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
+                    let label_transform =
+                        world_text_projection * Mat4::translation(screen_pos) * scale;
+                    let shadow_transform =
+                        world_text_projection * Mat4::translation(shadow_pos) * scale;
+                    let icon_transform = world_text_projection
+                        * Mat4::translation(screen_pos + vec3(-0.02, 0.02, 0.0))
+                        * icon_scale;
+                    let shadow_icon_transform = world_text_projection
+                        * Mat4::translation(shadow_pos + vec3(-0.02, 0.02, 0.0))
+                        * icon_scale;
 
-                let color = vec4(0.5, 1.0, 0.5, 1.0_f32);
+                    let color = vec4(0.5, 1.0, 0.5, 1.0_f32);
 
-                frame
-                    .draw(
-                        &quad_mesh.vertices,
-                        &quad_mesh.indices,
-                        &ui_shader,
-                        &uniform!{
-                            transform: shadow_icon_transform.0,
-                            colormap: &coin_icon,
-                            tint: [0.0, 0.0, 0.0, 0.6_f32],
-                        },
-                        &ui_draw_parameters,
-                    )
-                    .unwrap();
+                    frame
+                        .draw(
+                            &quad_mesh.vertices,
+                            &quad_mesh.indices,
+                            &ui_shader,
+                            &uniform!{
+                                transform: shadow_icon_transform.0,
+                                colormap: &coin_icon,
+                                tint: [0.0, 0.0, 0.0, 0.6_f32],
+                            },
+                            &ui_draw_parameters,
+                            )
+                        .unwrap();
 
-                frame
-                    .draw(
-                        &quad_mesh.vertices,
-                        &quad_mesh.indices,
-                        &ui_shader,
-                        &uniform!{
-                            transform: icon_transform.0,
-                            colormap: &coin_icon,
-                            tint: color.0,
-                        },
-                        &ui_draw_parameters,
-                    )
-                    .unwrap();
+                    frame
+                        .draw(
+                            &quad_mesh.vertices,
+                            &quad_mesh.indices,
+                            &ui_shader,
+                            &uniform!{
+                                transform: icon_transform.0,
+                                colormap: &coin_icon,
+                                tint: color.0,
+                            },
+                            &ui_draw_parameters,
+                            )
+                        .unwrap();
 
-                glium_text::draw(
-                    &label,
-                    &text_system,
-                    &mut frame,
-                    shadow_transform.0,
-                    (0.0, 0.0, 0.0, 0.6),
-                );
+                    glium_text::draw(
+                        &label,
+                        &text_system,
+                        &mut frame,
+                        shadow_transform.0,
+                        (0.0, 0.0, 0.0, 0.6),
+                        );
 
-                glium_text::draw(
-                    &label,
-                    &text_system,
-                    &mut frame,
-                    label_transform.0,
-                    color.as_tuple(),
-                );
+                    glium_text::draw(
+                        &label,
+                        &text_system,
+                        &mut frame,
+                        label_transform.0,
+                        color.as_tuple(),
+                        );
+                }
             }
-
 
             stopclock("world-text-pass", timer, stats_text);
 
-            let (black_turn_y, white_turn_y) = match whos_turn {
-                ChessColor::Black => (4.6, 7.0),
-                ChessColor::White => (7.0, 4.6),
+            let (black_turn_pos, white_turn_pos) = match game_outcome {
+                GameOutcome::Ongoing => match whos_turn {
+                    ChessColor::Black => (vec3(0.0, 4.6, 0.0), vec3(0.0, 7.0, 0.0)),
+                    ChessColor::White => (vec3(0.0, 7.0, 0.0), vec3(0.0, 4.6, 0.0)),
+                },
+                GameOutcome::Stalemate => (vec3(-1.0, 3.0, 0.0), vec3(1.0, 3.0, 0.0)),
+                GameOutcome::Victory(winner) => match winner {
+                    ChessColor::Black => (vec3(0.0, 3.0, 0.0), vec3(0.0, 7.0, 0.0)),
+                    ChessColor::White => (vec3(0.0, 7.0, 0.0), vec3(0.0, 3.0, 0.0)),
+                }
             };
 
-            let ui_render_commands = vec![
-                UiRenderCommand {
-                    colormap: &ui_frame_texture,
-                    pos: vec3(-6.0, 3.0, 0.0),
-                    scale: 1.5,
-                    angle: -consts::TAU32 / 8.0,
-                },
-                UiRenderCommand {
-                    colormap: &ui_frame_texture,
-                    pos: vec3(6.0, 3.0, 0.0),
-                    scale: 1.5,
-                    angle: -consts::TAU32 / 8.0,
-                },
-                UiRenderCommand {
-                    colormap: &ui_white_tile,
-                    pos: vec3(-6.0, 3.7, 0.0),
-                    scale: 0.8,
-                    angle: -consts::TAU32 / 8.0,
-                },
-                UiRenderCommand {
-                    colormap: &ui_black_tile,
-                    pos: vec3(6.0, 3.7, 0.0),
-                    scale: 0.8,
-                    angle: -consts::TAU32 / 8.0,
-                },
-                UiRenderCommand {
-                    colormap: &ui_white_tile,
-                    pos: vec3(0.0, white_turn_y, 0.0),
-                    scale: 1.2,
-                    angle: -consts::TAU32 / 8.0,
-                },
-                UiRenderCommand {
-                    colormap: &ui_black_tile,
-                    pos: vec3(0.0, black_turn_y, 0.0),
-                    scale: 1.2,
-                    angle: -consts::TAU32 / 8.0,
-                },
-            ];
+            let ui_render_commands = {
+                let mut game_ui = vec![
+                    UiRenderCommand {
+                        colormap: &ui_frame_texture,
+                        pos: vec3(-6.0, 3.0, 0.0),
+                        scale: 1.5,
+                        angle: -consts::TAU32 / 8.0,
+                    },
+                    UiRenderCommand {
+                        colormap: &ui_frame_texture,
+                        pos: vec3(6.0, 3.0, 0.0),
+                        scale: 1.5,
+                        angle: -consts::TAU32 / 8.0,
+                    },
+                    UiRenderCommand {
+                        colormap: &ui_white_tile,
+                        pos: vec3(-6.0, 3.7, 0.0),
+                        scale: 0.8,
+                        angle: -consts::TAU32 / 8.0,
+                    },
+                    UiRenderCommand {
+                        colormap: &ui_black_tile,
+                        pos: vec3(6.0, 3.7, 0.0),
+                        scale: 0.8,
+                        angle: -consts::TAU32 / 8.0,
+                    },
+                ];
+
+                let mut ui_render_commands = vec![
+                    UiRenderCommand {
+                        colormap: &ui_white_tile,
+                        pos: white_turn_pos,
+                        scale: 1.2,
+                        angle: -consts::TAU32 / 8.0,
+                    },
+                    UiRenderCommand {
+                        colormap: &ui_black_tile,
+                        pos: black_turn_pos,
+                        scale: 1.2,
+                        angle: -consts::TAU32 / 8.0,
+                    },
+                ];
+
+                if game_outcome == GameOutcome::Ongoing {
+                    ui_render_commands.append(&mut game_ui);
+                }
+
+                ui_render_commands
+            };
 
             for command in &ui_render_commands {
                 let transform = ui_projection * Mat4::translation(command.pos)
@@ -1409,47 +1438,50 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     .unwrap();
             }
 
-            let coin_positions = &[vec3(-6.45, 3.0, 0.0), vec3(5.55, 3.0, 0.0)];
+            if game_outcome == GameOutcome::Ongoing {
+                let coin_positions = &[vec3(-6.45, 3.0, 0.0), vec3(5.55, 3.0, 0.0)];
 
-            for &coin_pos in coin_positions {
-                let coin_scale = 0.6;
+                for &coin_pos in coin_positions {
+                    let coin_scale = 0.6;
 
-                let transform = ui_projection * Mat4::translation(coin_pos)
-                    * matrix::euler_rotation(vec3(0.0, -2.0 * elapsed, 0.0))
-                    * Mat4::scale(vec4(coin_scale, coin_scale, coin_scale, 1.0));
+                    let transform = ui_projection * Mat4::translation(coin_pos)
+                        * matrix::euler_rotation(vec3(0.0, -2.0 * elapsed, 0.0))
+                        * Mat4::scale(vec4(coin_scale, coin_scale, coin_scale, 1.0));
 
-                frame
-                    .draw(
-                        &coin_mesh.vertices,
-                        &coin_mesh.indices,
-                        &model_shader,
-                        &uniform!{
-                            transform: transform.0,
-                            normal_matrix: Mat3::<f32>::identity().0,
-                            texture_scale: vec3(1.0, 1.0, 1.0_f32).0,
-                            texture_offset: vec3(0.5, 0.5, 0.25_f32).0,
-                            colormap: &checker_texture,
-                            light_direction_matrix: light_direction_matrix.0,
-                            light_color_matrix: light_color_matrix.0,
-                            albedo: vec4(1.2, 1.2, 1.2, 1.0_f32).0,
-                            view_vector: vec3(0.0, 0.0, 1.0_f32).0,
-                            specular_power: config.light.specular_power as f32,
-                            specular_color: specular_color.0,
-                        },
-                        &DrawParameters {
-                            depth: Depth {
-                                test: DepthTest::Overwrite,
-                                write: false,
+                    frame
+                        .draw(
+                            &coin_mesh.vertices,
+                            &coin_mesh.indices,
+                            &model_shader,
+                            &uniform!{
+                                transform: transform.0,
+                                normal_matrix: Mat3::<f32>::identity().0,
+                                texture_scale: vec3(1.0, 1.0, 1.0_f32).0,
+                                texture_offset: vec3(0.5, 0.5, 0.25_f32).0,
+                                colormap: &checker_texture,
+                                light_direction_matrix: light_direction_matrix.0,
+                                light_color_matrix: light_color_matrix.0,
+                                albedo: vec4(1.2, 1.2, 1.2, 1.0_f32).0,
+                                view_vector: vec3(0.0, 0.0, 1.0_f32).0,
+                                specular_power: config.light.specular_power as f32,
+                                specular_color: specular_color.0,
+                                saturation: saturation,
+                            },
+                            &DrawParameters {
+                                depth: Depth {
+                                    test: DepthTest::Overwrite,
+                                    write: false,
+                                    ..Default::default()
+                                },
+                                blend: Blend::alpha_blending(),
+                                backface_culling: BackfaceCullingMode::CullClockwise,
+                                viewport: Some(viewport),
                                 ..Default::default()
                             },
-                            blend: Blend::alpha_blending(),
-                            backface_culling: BackfaceCullingMode::CullClockwise,
-                            viewport: Some(viewport),
-                            ..Default::default()
-                        },
-                    )
-                    .unwrap();
-            }
+                            )
+                                .unwrap();
+                }
+            };
 
             stopclock("ui-pass", timer, stats_text);
 
@@ -1465,21 +1497,23 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 );
             }
 
-            label_renderer.add_label(
-                &white_coins.to_string(),
-                vec3(-5.8, 2.8, 0.0),
-                0.4,
-                &text_system,
-                &font_texture,
-            );
+            if game_outcome == GameOutcome::Ongoing {
+                label_renderer.add_label(
+                    &white_coins.to_string(),
+                    vec3(-5.8, 2.8, 0.0),
+                    0.4,
+                    &text_system,
+                    &font_texture,
+                    );
 
-            label_renderer.add_label(
-                &black_coins.to_string(),
-                vec3(6.2, 2.8, 0.0),
-                0.4,
-                &text_system,
-                &font_texture,
-            );
+                label_renderer.add_label(
+                    &black_coins.to_string(),
+                    vec3(6.2, 2.8, 0.0),
+                    0.4,
+                    &text_system,
+                    &font_texture,
+                    );
+            }
 
 
             if show_stats {
@@ -1503,7 +1537,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
             label_renderer.add_label(
                 &status_label,
-                vec3(0.0, -4.0, 0.0),
+                vec3(-7.9, -4.4, 0.0),
                 0.5,
                 &text_system,
                 &font_texture,
