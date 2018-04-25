@@ -561,7 +561,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     if let Some(piece_type) = piece_type {
                         valid_purchase_placements =
                             chess::valid_purchase_placements(
-                                &pieces, piece_type, whos_turn
+                                &pieces, piece_type, whos_turn,
                             );
                     }
                 }
@@ -614,9 +614,16 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
                     if let Some(index) = best_purchase {
                         let piece_type = pieces_for_sale[index].unwrap();
-                        let valid_purchase_placements = chess::valid_purchase_placements(&pieces, piece_type, whos_turn);
+                        let valid_purchase_placements =
+                            chess::valid_purchase_placements(
+                                &pieces, piece_type, whos_turn,
+                            );
                         let mut rng = rand::thread_rng();
-                        let place = rand::seq::sample_slice(&mut rng, &valid_purchase_placements, 1)[0];
+                        let place = rand::seq::sample_slice(
+                            &mut rng,
+                            &valid_purchase_placements,
+                            1,
+                        )[0];
                         player_purchase = Some((index, place));
                     }
                     else {
@@ -644,7 +651,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     }
                 }
             }
-            else if mouse.pressed(Button::Left) && game_outcome == GameOutcome::Ongoing {
+            else if mouse.pressed(Button::Left)
+                && game_outcome == GameOutcome::Ongoing
+            {
                 match control_state {
                     ControlState::Idle => {
                         for (index, &tile) in buy_tiles.iter().enumerate() {
@@ -715,6 +724,12 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     pieces[moved_index].position = to;
                     pieces[moved_index].moved = true;
 
+                    if pieces[moved_index].piece_type == PieceType::Pawn
+                        && (to.0[1] == 0 || to.0[1] == 7)
+                    {
+                        pieces[moved_index].piece_type = PieceType::Queen;
+                    }
+
                     if let Some(promotion) = piece_promotion {
                         pieces[moved_index].piece_type = promotion;
                     }
@@ -780,8 +795,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             if let Some((index, place)) = player_purchase {
                 let piece_type = pieces_for_sale[index].unwrap();
 
-                let price =
-                    chess::piece_price(piece_type).buy_price;
+                let price = chess::piece_price(piece_type).buy_price;
 
                 let wallet = match whos_turn {
                     ChessColor::White => &mut white_coins,
@@ -1297,17 +1311,19 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
 
                     let icon_scale = Mat4::scale(vec4(
-                            1.2 * scale / TARGET_ASPECT,
-                            1.2 * scale,
-                            1.0,
-                            1.0,
-                            ));
+                        1.2 * scale / TARGET_ASPECT,
+                        1.2 * scale,
+                        1.0,
+                        1.0,
+                    ));
                     let scale =
                         Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
-                    let label_transform =
-                        world_text_projection * Mat4::translation(screen_pos) * scale;
-                    let shadow_transform =
-                        world_text_projection * Mat4::translation(shadow_pos) * scale;
+                    let label_transform = world_text_projection
+                        * Mat4::translation(screen_pos)
+                        * scale;
+                    let shadow_transform = world_text_projection
+                        * Mat4::translation(shadow_pos)
+                        * scale;
                     let icon_transform = world_text_projection
                         * Mat4::translation(screen_pos + vec3(-0.02, 0.02, 0.0))
                         * icon_scale;
@@ -1328,7 +1344,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                 tint: [0.0, 0.0, 0.0, 0.6_f32],
                             },
                             &ui_draw_parameters,
-                            )
+                        )
                         .unwrap();
 
                     frame
@@ -1342,7 +1358,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                 tint: color.0,
                             },
                             &ui_draw_parameters,
-                            )
+                        )
                         .unwrap();
 
                     glium_text::draw(
@@ -1351,7 +1367,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         &mut frame,
                         shadow_transform.0,
                         (0.0, 0.0, 0.0, 0.6),
-                        );
+                    );
 
                     glium_text::draw(
                         &label,
@@ -1359,7 +1375,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         &mut frame,
                         label_transform.0,
                         color.as_tuple(),
-                        );
+                    );
                 }
             }
 
@@ -1370,11 +1386,13 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     ChessColor::Black => (vec3(0.0, 4.6, 0.0), vec3(0.0, 7.0, 0.0)),
                     ChessColor::White => (vec3(0.0, 7.0, 0.0), vec3(0.0, 4.6, 0.0)),
                 },
-                GameOutcome::Stalemate => (vec3(-1.0, 3.0, 0.0), vec3(1.0, 3.0, 0.0)),
+                GameOutcome::Stalemate => {
+                    (vec3(-1.0, 3.0, 0.0), vec3(1.0, 3.0, 0.0))
+                }
                 GameOutcome::Victory(winner) => match winner {
                     ChessColor::Black => (vec3(0.0, 3.0, 0.0), vec3(0.0, 7.0, 0.0)),
                     ChessColor::White => (vec3(0.0, 7.0, 0.0), vec3(0.0, 3.0, 0.0)),
-                }
+                },
             };
 
             let ui_render_commands = {
@@ -1455,7 +1473,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
                     let transform = ui_projection * Mat4::translation(coin_pos)
                         * matrix::euler_rotation(vec3(0.0, -2.0 * elapsed, 0.0))
-                        * Mat4::scale(vec4(coin_scale, coin_scale, coin_scale, 1.0));
+                        * Mat4::scale(vec4(
+                            coin_scale, coin_scale, coin_scale, 1.0,
+                        ));
 
                     frame
                         .draw(
@@ -1483,12 +1503,13 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                                     ..Default::default()
                                 },
                                 blend: Blend::alpha_blending(),
-                                backface_culling: BackfaceCullingMode::CullClockwise,
+                                backface_culling:
+                                    BackfaceCullingMode::CullClockwise,
                                 viewport: Some(viewport),
                                 ..Default::default()
                             },
-                            )
-                                .unwrap();
+                        )
+                        .unwrap();
                 }
             };
 
@@ -1513,7 +1534,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     0.4,
                     &text_system,
                     &font_texture,
-                    );
+                );
 
                 label_renderer.add_label(
                     &black_coins.to_string(),
@@ -1521,7 +1542,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     0.4,
                     &text_system,
                     &font_texture,
-                    );
+                );
             }
 
 
