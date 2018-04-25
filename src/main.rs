@@ -359,9 +359,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     };
 
     let mut pieces_for_sale = [
-        Some(random_piece(&config)),
-        Some(random_piece(&config)),
-        Some(random_piece(&config)),
+        Some(PieceForSale { piece_type: random_piece(&config), discounted: false }),
+        Some(PieceForSale { piece_type: random_piece(&config), discounted: false }),
+        Some(PieceForSale { piece_type: random_piece(&config), discounted: false }),
     ];
 
     let mut white_coins = 0;
@@ -556,12 +556,12 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     can_sell = pieces[index].piece_type != PieceType::King;
                 }
                 ControlState::SelectedPurchaseIndex(index) => {
-                    let piece_type = pieces_for_sale[index];
+                    let piece_for_sale = pieces_for_sale[index];
 
-                    if let Some(piece_type) = piece_type {
+                    if let Some(piece_for_sale) = piece_for_sale {
                         valid_purchase_placements =
                             chess::valid_purchase_placements(
-                                &pieces, piece_type, whos_turn,
+                                &pieces, piece_for_sale.piece_type, whos_turn,
                             );
                     }
                 }
@@ -604,8 +604,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         .map(|(index, piece)| {
                             (
                                 index,
-                                piece,
-                                chess::piece_price(piece).buy_price,
+                                piece.piece_type,
+                                chess::buy_price(piece),
                             )
                         })
                         .filter(|(_, _, price)| *price <= coins)
@@ -613,10 +613,10 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                         .map(|(index, _, _)| index);
 
                     if let Some(index) = best_purchase {
-                        let piece_type = pieces_for_sale[index].unwrap();
+                        let piece_for_sale = pieces_for_sale[index].unwrap();
                         let valid_purchase_placements =
                             chess::valid_purchase_placements(
-                                &pieces, piece_type, whos_turn,
+                                &pieces, piece_for_sale.piece_type, whos_turn,
                             );
                         let mut rng = rand::thread_rng();
                         let place = rand::seq::sample_slice(
@@ -775,8 +775,14 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
                 // Restock shop
                 for piece in &mut pieces_for_sale {
-                    if piece.is_none() {
-                        *piece = Some(random_piece(&config));
+                    match piece {
+                        Some(piece) => piece.discounted = true,
+                        None => {
+                            *piece = Some(PieceForSale {
+                                piece_type: random_piece(&config),
+                                discounted: false,
+                            });
+                        }
                     }
                 }
             }
@@ -795,9 +801,9 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
             }
 
             if let Some((index, place)) = player_purchase {
-                let piece_type = pieces_for_sale[index].unwrap();
+                let piece_for_sale = pieces_for_sale[index].unwrap();
 
-                let price = chess::piece_price(piece_type).buy_price;
+                let price = chess::buy_price(piece_for_sale);
 
                 let wallet = match whos_turn {
                     ChessColor::White => &mut white_coins,
@@ -808,7 +814,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                     pieces.push(Piece {
                         position: place,
                         color: whos_turn,
-                        piece_type,
+                        piece_type: piece_for_sale.piece_type,
                         moved: false,
                     });
                     pieces_for_sale[index] = None;
@@ -930,7 +936,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
                 if let Some(piece_for_sale) = piece_for_sale {
                     let position = chessjam::grid_to_world(tile);
-                    let mesh = mesh_for_piece(piece_for_sale);
+                    let mesh = mesh_for_piece(piece_for_sale.piece_type);
                     let color = Vec4::from_slice(&config.colors.forsale).as_f32();
                     let mvp_matrix =
                         view_projection_matrix * Mat4::translation(position);
@@ -1264,10 +1270,12 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                 let piece_for_sale = pieces_for_sale[index];
 
                 if let Some(piece_for_sale) = piece_for_sale {
-                    let price = chess::piece_price(piece_for_sale).buy_price;
+                    let price = chess::buy_price(piece_for_sale);
+
+                    let tag = if piece_for_sale.discounted { "SALE!" } else { "" };
 
                     price_tag_renderer.add_label(
-                        &format!("{}", price),
+                        &format!("{} {}", price, tag),
                         chessjam::grid_to_world(tile) + vec3(0.0, 1.75, 0.0),
                         0.05,
                         &text_system,

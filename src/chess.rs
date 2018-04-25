@@ -145,6 +145,16 @@ pub fn sell_price(piece_type: PieceType, moved: bool) -> u32 {
     }
 }
 
+pub fn buy_price(piece_for_sale: PieceForSale) -> u32 {
+    let price = piece_price(piece_for_sale.piece_type);
+    if piece_for_sale.discounted {
+        price.discount_price
+    }
+    else {
+        price.buy_price
+    }
+}
+
 pub fn valid_purchase_placements(
     pieces: &[Piece],
     piece_type: PieceType,
