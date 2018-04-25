@@ -726,6 +726,15 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
                             pieces[index].moved = true;
                         }
                         else {
+                            let refund = chess::sell_price(
+                                pieces[index].piece_type,
+                                pieces[index].moved,
+                            );
+
+                            match pieces[index].color {
+                                ChessColor::White => white_coins += refund,
+                                ChessColor::Black => black_coins += refund,
+                            }
                             pieces.swap_remove(index);
                         }
                     }
