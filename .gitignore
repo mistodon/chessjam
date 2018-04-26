@@ -1,5 +1,6 @@
 src/gen_config.rs
 assets/meshes/
+assets/music/
 release_builds/
 /target
 **/*.rs.bk
