@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e
+
+mkdir -p "assets/music"
+
+readonly sourcepath=$(cd "source_assets/music" && pwd)
+readonly destpath=$(cd "assets/music" && pwd)
+
+rm -r $sourcepath/*.bak
+
+for projectfile in $(ls $sourcepath); do
+    /Applications/LMMS.app/Contents/MacOS/lmms --render "$sourcepath/$projectfile" --output "$destpath/${projectfile%.mmpz}.ogg" --interpolation sincbest --loop --format ogg
+done
