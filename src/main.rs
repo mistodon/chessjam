@@ -12,6 +12,7 @@ extern crate glium_text;
 extern crate pleco;
 extern crate pleco_engine;
 extern crate rand;
+extern crate rodio;
 extern crate wavefront_obj;
 
 mod chess;
@@ -99,6 +100,19 @@ fn main() {
     };
 
     let display = &Display::new(window, context, &events_loop).unwrap();
+
+    let speaker = rodio::default_output_device().unwrap();
+
+    // Start playing music
+    {
+        use std::io::Cursor;
+        use rodio::{Source, Decoder};
+
+        let audio_bytes = asset_bytes!("assets/music/the_line.ogg");
+        let cursor = Cursor::new(audio_bytes);
+        let decoder = Decoder::new(cursor).unwrap().repeat_infinite();
+        rodio::play_raw(&speaker, decoder.convert_samples());
+    }
 
     loop {
         let rerun = run_game(display, &mut events_loop);
