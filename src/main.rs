@@ -25,6 +25,7 @@ use std::time::Instant;
 
 use adequate_math::*;
 use glium::{glutin::EventsLoop, Display};
+use rodio::Device;
 
 use chessjam::config::Config;
 use data::*;
@@ -103,19 +104,8 @@ fn main() {
 
     let speaker = rodio::default_output_device().unwrap();
 
-    // Start playing music
-    {
-        use std::io::Cursor;
-        use rodio::{Source, Decoder};
-
-        let audio_bytes = asset_bytes!("assets/music/the_line.ogg");
-        let cursor = Cursor::new(audio_bytes);
-        let decoder = Decoder::new(cursor).unwrap().repeat_infinite();
-        rodio::play_raw(&speaker, decoder.convert_samples());
-    }
-
     loop {
-        let rerun = run_game(display, &mut events_loop);
+        let rerun = run_game(display, &mut events_loop, &speaker);
 
         if !rerun {
             break;
@@ -125,7 +115,7 @@ fn main() {
 
 
 #[allow(cyclomatic_complexity)]
-fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
+fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -> bool {
     use std::io::Cursor;
 
     use glium::Rect;
@@ -264,6 +254,20 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         display,
         asset_bytes!("assets/textures/coin_icon.png").as_ref(),
     );
+
+
+    // Start playing music
+    let mut music = {
+        use std::io::Cursor;
+        use rodio::{Source, Decoder, Sink};
+
+        let sink = Sink::new(speaker);
+        let audio_bytes = asset_bytes!("assets/music/the_line.ogg");
+        let cursor = Cursor::new(audio_bytes);
+        let decoder = Decoder::new(cursor).unwrap().repeat_infinite();
+        sink.append(decoder);
+        sink
+    };
 
 
     let text_system = TextSystem::new(display);
@@ -406,6 +410,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
     let mut stats_text = String::new();
     let mut show_stats = true;
     let start_time = Instant::now();
+    let mut game_end_time = None;
 
     loop {
         let (dt, now) = chessjam::delta_time(frame_time);
@@ -413,6 +418,12 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         frame_time = now;
         let timer = &mut timer;
         let stats_text = &mut stats_text;
+
+        if let Some(game_end_time) = game_end_time {
+            let elapsed = chessjam::elapsed_time(game_end_time);
+            let volume = (3.0 - elapsed).max(0.0) / 3.0;
+            music.set_volume(volume);
+        }
 
         stopclock("between-frames", timer, stats_text);
 
@@ -473,7 +484,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
         stopclock("inputs", timer, stats_text);
 
         if closed || keyboard.pressed(Key::Escape) {
-            return false;
+            // TODO(***realname***): Find out why `return false` here crashes.
+            std::process::exit(0);
         }
         if keyboard.pressed(Key::R) && keyboard.modifiers.logo {
             return true;
@@ -786,6 +798,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
 
                 if board.checkmate() {
                     game_outcome = GameOutcome::Victory(prev_turn);
+                    game_end_time = Some(Instant::now());
                 }
                 else if board.stalemate() {
                     game_outcome = GameOutcome::Stalemate;
