@@ -115,7 +115,11 @@ fn main() {
 
 
 #[allow(cyclomatic_complexity)]
-fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -> bool {
+fn run_game(
+    display: &Display,
+    events_loop: &mut EventsLoop,
+    speaker: &Device,
+) -> bool {
     use std::io::Cursor;
 
     use glium::Rect;
@@ -258,8 +262,8 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
 
     // Start playing music
     let mut music = {
+        use rodio::{Decoder, Sink, Source};
         use std::io::Cursor;
-        use rodio::{Source, Decoder, Sink};
 
         let sink = Sink::new(speaker);
         let audio_bytes = asset_bytes!("assets/music/the_line.ogg");
@@ -357,12 +361,14 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
                 color: ChessColor::White,
                 piece_type: PieceType::Pawn,
                 moved: false,
+                animation: None,
             });
             pieces.push(Piece {
                 position: vec2(x, 6),
                 color: ChessColor::Black,
                 piece_type: PieceType::Pawn,
                 moved: false,
+                animation: None,
             });
         }
         pieces.push(Piece {
@@ -370,20 +376,31 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
             color: ChessColor::White,
             piece_type: PieceType::King,
             moved: false,
+            animation: None,
         });
         pieces.push(Piece {
             position: vec2(4, 7),
             color: ChessColor::Black,
             piece_type: PieceType::King,
             moved: false,
+            animation: None,
         });
         pieces
     };
 
     let mut pieces_for_sale = [
-        Some(PieceForSale { piece_type: random_piece(&config), discounted: false }),
-        Some(PieceForSale { piece_type: random_piece(&config), discounted: false }),
-        Some(PieceForSale { piece_type: random_piece(&config), discounted: false }),
+        Some(PieceForSale {
+            piece_type: random_piece(&config),
+            discounted: false,
+        }),
+        Some(PieceForSale {
+            piece_type: random_piece(&config),
+            discounted: false,
+        }),
+        Some(PieceForSale {
+            piece_type: random_piece(&config),
+            discounted: false,
+        }),
     ];
 
     let mut white_coins = 0;
@@ -591,12 +608,39 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
                     if let Some(piece_for_sale) = piece_for_sale {
                         valid_purchase_placements =
                             chess::valid_purchase_placements(
-                                &pieces, piece_for_sale.piece_type, whos_turn,
+                                &pieces,
+                                piece_for_sale.piece_type,
+                                whos_turn,
                             );
                     }
                 }
                 ControlState::Idle => (),
             }
+
+            // animation
+            let animations_playing = {
+                let mut animating = false;
+
+                for piece in &mut pieces {
+                    let mut anim_done = false;
+
+                    if let Some(ref mut anim) = piece.animation {
+                        animating = true;
+                        anim.t += dt;
+                        if anim.t > 1.0 {
+                            anim_done = true;
+                        }
+                    }
+
+                    if anim_done {
+                        piece.animation = None;
+                    }
+                }
+
+                animating
+            };
+
+            stopclock("animation", timer, stats_text);
 
 
             // Player actions
@@ -605,145 +649,150 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
             let mut piece_to_sell = None;
             let mut player_purchase = None;
 
-            if ai_player == Some(whos_turn) {
-                if ai_pawns_to_sell > 0 {
-                    let pawns = pieces
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, p)| {
-                            p.color == whos_turn && p.piece_type == PieceType::Pawn
-                        })
-                        .map(|(i, _)| i)
-                        .collect::<Vec<usize>>();
+            let allow_player_actions =
+                game_outcome == GameOutcome::Ongoing && !animations_playing;
 
-                    let mut rng = rand::thread_rng();
-                    let index = rand::seq::sample_slice(&mut rng, &pawns, 1)[0];
-                    piece_to_sell = Some(index);
-                    ai_pawns_to_sell -= 1;
-                }
-                else {
-                    let coins = match whos_turn {
-                        ChessColor::Black => black_coins,
-                        ChessColor::White => white_coins,
-                    };
+            if allow_player_actions {
+                if ai_player == Some(whos_turn) {
+                    if ai_pawns_to_sell > 0 {
+                        let pawns = pieces
+                            .iter()
+                            .enumerate()
+                            .filter(|(_, p)| {
+                                p.color == whos_turn
+                                    && p.piece_type == PieceType::Pawn
+                            })
+                            .map(|(i, _)| i)
+                            .collect::<Vec<usize>>();
 
-                    let best_purchase = pieces_for_sale
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(index, piece)| piece.map(|p| (index, p)))
-                        .map(|(index, piece)| {
-                            (
-                                index,
-                                piece.piece_type,
-                                chess::buy_price(piece),
-                            )
-                        })
-                        .filter(|(_, _, price)| *price <= coins)
-                        .max_by_key(|(_, piece, _)| *piece)
-                        .map(|(index, _, _)| index);
-
-                    if let Some(index) = best_purchase {
-                        let piece_for_sale = pieces_for_sale[index].unwrap();
-                        let valid_purchase_placements =
-                            chess::valid_purchase_placements(
-                                &pieces, piece_for_sale.piece_type, whos_turn,
-                            );
                         let mut rng = rand::thread_rng();
-                        let place = rand::seq::sample_slice(
-                            &mut rng,
-                            &valid_purchase_placements,
-                            1,
-                        )[0];
-                        player_purchase = Some((index, place));
+                        let index = rand::seq::sample_slice(&mut rng, &pawns, 1)[0];
+                        piece_to_sell = Some(index);
+                        ai_pawns_to_sell -= 1;
                     }
                     else {
-                        let mov = chess::decide_move(&pieces, whos_turn);
-                        let from = chessjam::grid_from_u8(mov.get_src_u8());
-                        let to = chessjam::grid_from_u8(mov.get_dest_u8());
-                        player_move = Some((from, to));
-
-                        if mov.is_promo() {
-                            use pleco::PieceType::*;
-
-                            let piece = match mov.promo_piece() {
-                                Q => PieceType::Queen,
-                                R => PieceType::Rook,
-                                B => PieceType::Bishop,
-                                N => PieceType::Knight,
-                                P => PieceType::Pawn,
-                                _ => {
-                                    unreachable!("Invalid promotion was attempted.")
-                                }
-                            };
-
-                            piece_promotion = Some(piece);
-                        }
-                    }
-                }
-            }
-            else if mouse.pressed(Button::Left)
-                && game_outcome == GameOutcome::Ongoing
-            {
-                match control_state {
-                    ControlState::Idle => {
-                        for (index, &tile) in buy_tiles.iter().enumerate() {
-                            if tile == tile_cursor {
-                                control_state =
-                                    ControlState::SelectedPurchaseIndex(index);
-                            }
-                        }
-                        control_state = match chess::piece_at(tile_cursor, &pieces)
-                        {
-                            Some(index) if pieces[index].color == whos_turn => {
-                                ControlState::SelectedPieceIndex(index)
-                            }
-                            _ => control_state,
+                        let coins = match whos_turn {
+                            ChessColor::Black => black_coins,
+                            ChessColor::White => white_coins,
                         };
-                    }
-                    ControlState::SelectedPieceIndex(index) => {
-                        if valid_destinations.contains(&tile_cursor) {
-                            let from_tile = pieces[index].position;
-                            let to_tile = tile_cursor;
-                            player_move = Some((from_tile, to_tile));
-                        }
-                        else if tile_cursor == sell_tile && can_sell
-                            && pieces[index].color == whos_turn
-                        {
-                            piece_to_sell = Some(index);
-                        }
-                        control_state = ControlState::Idle;
-                    }
-                    ControlState::SelectedPurchaseIndex(index) => {
-                        let piece_type = pieces_for_sale[index];
 
-                        if piece_type.is_some() {
-                            if valid_purchase_placements.contains(&tile_cursor) {
-                                player_purchase = Some((index, tile_cursor));
+                        let best_purchase = pieces_for_sale
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(index, piece)| piece.map(|p| (index, p)))
+                            .map(|(index, piece)| {
+                                (index, piece.piece_type, chess::buy_price(piece))
+                            })
+                            .filter(|(_, _, price)| *price <= coins)
+                            .max_by_key(|(_, piece, _)| *piece)
+                            .map(|(index, _, _)| index);
+
+                        if let Some(index) = best_purchase {
+                            let piece_for_sale = pieces_for_sale[index].unwrap();
+                            let valid_purchase_placements =
+                                chess::valid_purchase_placements(
+                                    &pieces,
+                                    piece_for_sale.piece_type,
+                                    whos_turn,
+                                );
+                            let mut rng = rand::thread_rng();
+                            let place = rand::seq::sample_slice(
+                                &mut rng,
+                                &valid_purchase_placements,
+                                1,
+                            )[0];
+                            player_purchase = Some((index, place));
+                        }
+                        else {
+                            let mov = chess::decide_move(&pieces, whos_turn);
+                            let from = chessjam::grid_from_u8(mov.get_src_u8());
+                            let to = chessjam::grid_from_u8(mov.get_dest_u8());
+                            player_move = Some((from, to));
+
+                            if mov.is_promo() {
+                                use pleco::PieceType::*;
+
+                                let piece = match mov.promo_piece() {
+                                    Q => PieceType::Queen,
+                                    R => PieceType::Rook,
+                                    B => PieceType::Bishop,
+                                    N => PieceType::Knight,
+                                    P => PieceType::Pawn,
+                                    _ => unreachable!(
+                                        "Invalid promotion was attempted."
+                                    ),
+                                };
+
+                                piece_promotion = Some(piece);
                             }
                         }
-
-                        control_state = ControlState::Idle;
                     }
                 }
+                else if mouse.pressed(Button::Left) {
+                    match control_state {
+                        ControlState::Idle => {
+                            for (index, &tile) in buy_tiles.iter().enumerate() {
+                                if tile == tile_cursor {
+                                    control_state =
+                                        ControlState::SelectedPurchaseIndex(index);
+                                }
+                            }
+                            control_state = match chess::piece_at(
+                                tile_cursor,
+                                &pieces,
+                            ) {
+                                Some(index) if pieces[index].color == whos_turn => {
+                                    ControlState::SelectedPieceIndex(index)
+                                }
+                                _ => control_state,
+                            };
+                        }
+                        ControlState::SelectedPieceIndex(index) => {
+                            if valid_destinations.contains(&tile_cursor) {
+                                let from_tile = pieces[index].position;
+                                let to_tile = tile_cursor;
+                                player_move = Some((from_tile, to_tile));
+                            }
+                            else if tile_cursor == sell_tile && can_sell
+                                && pieces[index].color == whos_turn
+                            {
+                                piece_to_sell = Some(index);
+                            }
+                            control_state = ControlState::Idle;
+                        }
+                        ControlState::SelectedPurchaseIndex(index) => {
+                            let piece_type = pieces_for_sale[index];
 
-                // Recalculate possible moves
-                // TODO(***realname***): Put this at an outer scope, invalidate it safely
-                valid_destinations.clear();
-                if let ControlState::SelectedPieceIndex(index) = control_state {
-                    let piece = &pieces[index];
-                    let (px, py) = piece.position.as_tuple();
-                    let piece_pos_u8 = (py * 8 + px) as u8;
+                            if piece_type.is_some() {
+                                if valid_purchase_placements.contains(&tile_cursor)
+                                {
+                                    player_purchase = Some((index, tile_cursor));
+                                }
+                            }
 
-                    let fen = chess::generate_fen(&pieces, whos_turn);
-                    let board = Board::from_fen(&fen).unwrap();
-                    let moves = board.generate_moves();
+                            control_state = ControlState::Idle;
+                        }
+                    }
 
-                    for chessmove in moves.iter() {
-                        let from_u8 = chessmove.get_src_u8();
-                        let to_u8 = chessmove.get_dest_u8();
-                        let dest = chessjam::grid_from_u8(to_u8);
-                        if from_u8 == piece_pos_u8 {
-                            valid_destinations.push(dest);
+                    // Recalculate possible moves
+                    // TODO(***realname***): Put this at an outer scope, invalidate it safely
+                    valid_destinations.clear();
+                    if let ControlState::SelectedPieceIndex(index) = control_state {
+                        let piece = &pieces[index];
+                        let (px, py) = piece.position.as_tuple();
+                        let piece_pos_u8 = (py * 8 + px) as u8;
+
+                        let fen = chess::generate_fen(&pieces, whos_turn);
+                        let board = Board::from_fen(&fen).unwrap();
+                        let moves = board.generate_moves();
+
+                        for chessmove in moves.iter() {
+                            let from_u8 = chessmove.get_src_u8();
+                            let to_u8 = chessmove.get_dest_u8();
+                            let dest = chessjam::grid_from_u8(to_u8);
+                            if from_u8 == piece_pos_u8 {
+                                valid_destinations.push(dest);
+                            }
                         }
                     }
                 }
@@ -755,6 +804,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
                     let taken_index = chess::piece_at(to, &pieces);
                     pieces[moved_index].position = to;
                     pieces[moved_index].moved = true;
+                    pieces[moved_index].animation = Some(Animation {
+                        from,
+                        to,
+                        t: 0.0,
+                    });
 
                     if pieces[moved_index].piece_type == PieceType::Pawn
                         && (to.0[1] == 0 || to.0[1] == 7)
@@ -847,6 +901,11 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
                         color: whos_turn,
                         piece_type: piece_for_sale.piece_type,
                         moved: false,
+                        animation: Some(Animation {
+                            from: buy_tiles[index],
+                            to: place,
+                            t: 0.0,
+                        }),
                     });
                     pieces_for_sale[index] = None;
                 }
@@ -854,6 +913,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
         }
 
         stopclock("update", timer, stats_text);
+
 
         // render
         {
@@ -950,7 +1010,15 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
 
                 let mesh = mesh_for_piece(piece.piece_type);
 
-                let position = chessjam::grid_to_world(piece.position);
+                let position = match piece.animation {
+                    Some(ref anim) => math::lerp(
+                        chessjam::grid_to_world(anim.from),
+                        chessjam::grid_to_world(anim.to),
+                        anim.t,
+                    ),
+                    None => chessjam::grid_to_world(piece.position),
+                };
+
                 lit_render_buffer.push(RenderCommand {
                     mesh,
                     color: vec4(1.0, 1.0, 1.0, 1.0),
@@ -1303,7 +1371,12 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
                 if let Some(piece_for_sale) = piece_for_sale {
                     let price = chess::buy_price(piece_for_sale);
 
-                    let tag = if piece_for_sale.discounted { "SALE!" } else { "" };
+                    let tag = if piece_for_sale.discounted {
+                        "SALE!"
+                    }
+                    else {
+                        ""
+                    };
 
                     price_tag_renderer.add_label(
                         &format!("{} {}", price, tag),
@@ -1598,7 +1671,7 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop, speaker: &Device) -
                             0.1,
                             &text_system,
                             &font_texture,
-                            );
+                        );
                     }
                 }
             }
