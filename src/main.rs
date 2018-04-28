@@ -857,6 +857,7 @@ fn run_game(
                                 to: sell_tile,
                                 t: 0.0,
                             });
+                            pieces[index].position = sell_tile;
                             pieces[index].delete_after_animation = true;
 
                             match pieces[index].color {
@@ -909,6 +910,7 @@ fn run_game(
                     to: sell_tile,
                     t: 0.0,
                 });
+                pieces[index].position = sell_tile;
                 pieces[index].delete_after_animation = true;
 
                 match whos_turn {
