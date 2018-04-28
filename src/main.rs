@@ -15,6 +15,7 @@ extern crate rand;
 extern crate rodio;
 extern crate wavefront_obj;
 
+mod audio;
 mod chess;
 mod data;
 mod graphics;
@@ -261,30 +262,13 @@ fn run_game(
 
 
     // Start playing music
-    let mut music = {
-        use rodio::{Decoder, Sink, Source};
-        use std::io::Cursor;
+    let mut music = audio::play_music(
+        speaker,
+        &asset_bytes!("assets/music/the_line.ogg"),
+    );
 
-        let sink = Sink::new(speaker);
-        let audio_bytes = asset_bytes!("assets/music/the_line.ogg");
-        let cursor = Cursor::new(audio_bytes);
-        let decoder = Decoder::new(cursor).unwrap().repeat_infinite();
-        sink.append(decoder);
-        sink
-    };
-
-    use std::borrow::Cow;
     let tap_sound = asset_bytes!("assets/audio/tap.ogg");
-
-    fn play_sound(speaker: &Device, audio_bytes: &Cow<'static, [u8]>) {
-        use std::io::Cursor;
-        use rodio::{Decoder, Source};
-
-        let cursor = Cursor::new(audio_bytes.clone());
-        let decoder = Decoder::new(cursor).unwrap();
-        rodio::play_raw(speaker, decoder.convert_samples());
-    };
-
+    let coin_sound = asset_bytes!("assets/audio/coins.ogg");
 
     let text_system = TextSystem::new(display);
     let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
@@ -315,6 +299,7 @@ fn run_game(
     let shadow_direction = Vec4::from_slice(&config.light.key_dir)
         .norm()
         .as_f32();
+
     let light_direction_matrix: Mat4<f32> = {
         let key = shadow_direction;
         let fill = Vec4::from_slice(&config.light.fill_dir)
@@ -652,10 +637,12 @@ fn run_game(
                     if anim_done {
                         piece.animation = None;
 
-                        play_sound(speaker, &tap_sound);
-
                         if piece.delete_after_animation {
                             trash.push(index);
+                            audio::play_sound(speaker, &coin_sound);
+                        }
+                        else {
+                            audio::play_sound(speaker, &tap_sound);
                         }
                     }
                 }
@@ -1064,13 +1051,18 @@ fn run_game(
                         let from_up = from_down + vec3(0.0, 2.0, 0.0);
                         let to_up = to_down + vec3(0.0, 2.0, 0.0);
 
-                        let sink = if anim.to == sell_tile { vec3(0.0, -2.0, 0.0) } else { vec3(0.0, 0.0, 0.0) };
+                        let sink = if anim.to == sell_tile {
+                            vec3(0.0, -2.0, 0.0)
+                        }
+                        else {
+                            vec3(0.0, 0.0, 0.0)
+                        };
                         let to_down = to_down + sink;
 
                         let (from, to, t) = match t {
-                            t if t < 0.33 => (from_down, from_up, t*3.0),
-                            t if t < 0.66 => (from_up, to_up, (t-0.33)*3.0),
-                            t => (to_up, to_down, (t-0.66)*3.0),
+                            t if t < 0.33 => (from_down, from_up, t * 3.0),
+                            t if t < 0.66 => (from_up, to_up, (t - 0.33) * 3.0),
+                            t => (to_up, to_down, (t - 0.66) * 3.0),
                         };
 
                         let t = t.powf(0.5);
