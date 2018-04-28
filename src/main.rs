@@ -273,6 +273,18 @@ fn run_game(
         sink
     };
 
+    use std::borrow::Cow;
+    let tap_sound = asset_bytes!("assets/audio/tap.ogg");
+
+    fn play_sound(speaker: &Device, audio_bytes: &Cow<'static, [u8]>) {
+        use std::io::Cursor;
+        use rodio::{Decoder, Source};
+
+        let cursor = Cursor::new(audio_bytes.clone());
+        let decoder = Decoder::new(cursor).unwrap();
+        rodio::play_raw(speaker, decoder.convert_samples());
+    };
+
 
     let text_system = TextSystem::new(display);
     let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
@@ -639,6 +651,8 @@ fn run_game(
 
                     if anim_done {
                         piece.animation = None;
+
+                        play_sound(speaker, &tap_sound);
 
                         if piece.delete_after_animation {
                             trash.push(index);
