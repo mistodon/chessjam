@@ -362,6 +362,7 @@ fn run_game(
                 piece_type: PieceType::Pawn,
                 moved: false,
                 animation: None,
+                delete_after_animation: false,
             });
             pieces.push(Piece {
                 position: vec2(x, 6),
@@ -369,6 +370,7 @@ fn run_game(
                 piece_type: PieceType::Pawn,
                 moved: false,
                 animation: None,
+                delete_after_animation: false,
             });
         }
         pieces.push(Piece {
@@ -377,6 +379,7 @@ fn run_game(
             piece_type: PieceType::King,
             moved: false,
             animation: None,
+            delete_after_animation: false,
         });
         pieces.push(Piece {
             position: vec2(4, 7),
@@ -384,6 +387,7 @@ fn run_game(
             piece_type: PieceType::King,
             moved: false,
             animation: None,
+            delete_after_animation: false,
         });
         pieces
     };
@@ -620,8 +624,9 @@ fn run_game(
             // animation
             let animations_playing = {
                 let mut animating = false;
+                let mut trash = Vec::new();
 
-                for piece in &mut pieces {
+                for (index, piece) in pieces.iter_mut().enumerate() {
                     let mut anim_done = false;
 
                     if let Some(ref mut anim) = piece.animation {
@@ -634,7 +639,16 @@ fn run_game(
 
                     if anim_done {
                         piece.animation = None;
+
+                        if piece.delete_after_animation {
+                            trash.push(index);
+                        }
                     }
+                }
+
+                trash.reverse();
+                for index in trash {
+                    pieces.swap_remove(index);
                 }
 
                 animating
@@ -825,6 +839,11 @@ fn run_game(
                             // This must be a castle
                             pieces[index].position = from;
                             pieces[index].moved = true;
+                            pieces[index].animation = Some(Animation {
+                                from: to,
+                                to: from,
+                                t: 0.0,
+                            });
                         }
                         else {
                             let refund = chess::sell_price(
@@ -832,11 +851,17 @@ fn run_game(
                                 pieces[index].moved,
                             );
 
+                            pieces[index].animation = Some(Animation {
+                                from: to,
+                                to: sell_tile,
+                                t: 0.0,
+                            });
+                            pieces[index].delete_after_animation = true;
+
                             match pieces[index].color {
                                 ChessColor::White => white_coins += refund,
                                 ChessColor::Black => black_coins += refund,
                             }
-                            pieces.swap_remove(index);
                         }
                     }
                 }
@@ -878,11 +903,17 @@ fn run_game(
                     pieces[index].moved,
                 );
 
+                pieces[index].animation = Some(Animation {
+                    from: pieces[index].position,
+                    to: sell_tile,
+                    t: 0.0,
+                });
+                pieces[index].delete_after_animation = true;
+
                 match whos_turn {
                     ChessColor::White => white_coins += refund,
                     ChessColor::Black => black_coins += refund,
                 }
-                pieces.swap_remove(index);
             }
 
             if let Some((index, place)) = player_purchase {
@@ -906,6 +937,7 @@ fn run_game(
                             to: place,
                             t: 0.0,
                         }),
+                        delete_after_animation: false,
                     });
                     pieces_for_sale[index] = None;
                 }
@@ -1011,11 +1043,26 @@ fn run_game(
                 let mesh = mesh_for_piece(piece.piece_type);
 
                 let position = match piece.animation {
-                    Some(ref anim) => math::lerp(
-                        chessjam::grid_to_world(anim.from),
-                        chessjam::grid_to_world(anim.to),
-                        anim.t,
-                    ),
+                    Some(ref anim) => {
+                        let t = anim.t;
+                        let from_down = chessjam::grid_to_world(anim.from);
+                        let to_down = chessjam::grid_to_world(anim.to);
+                        let from_up = from_down + vec3(0.0, 2.0, 0.0);
+                        let to_up = to_down + vec3(0.0, 2.0, 0.0);
+
+                        let sink = if anim.to == sell_tile { vec3(0.0, -2.0, 0.0) } else { vec3(0.0, 0.0, 0.0) };
+                        let to_down = to_down + sink;
+
+                        let (from, to, t) = match t {
+                            t if t < 0.33 => (from_down, from_up, t*3.0),
+                            t if t < 0.66 => (from_up, to_up, (t-0.33)*3.0),
+                            t => (to_up, to_down, (t-0.66)*3.0),
+                        };
+
+                        let t = t.powf(0.5);
+
+                        math::lerp(from, to, t)
+                    }
                     None => chessjam::grid_to_world(piece.position),
                 };
 

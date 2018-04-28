@@ -34,6 +34,7 @@ pub struct Piece {
     pub piece_type: PieceType,
     pub moved: bool,
     pub animation: Option<Animation>,
+    pub delete_after_animation: bool,
 }
 
 #[derive(Debug, Copy, Clone)]
