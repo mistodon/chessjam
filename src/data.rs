@@ -19,6 +19,13 @@ pub struct UiRenderCommand<'a> {
     pub angle: f32,
 }
 
+#[derive(Debug)]
+pub struct Animation {
+    pub from: Vec2<i32>,
+    pub to: Vec2<i32>,
+    pub t: f32,
+}
+
 
 #[derive(Debug)]
 pub struct Piece {
@@ -26,6 +33,7 @@ pub struct Piece {
     pub color: ChessColor,
     pub piece_type: PieceType,
     pub moved: bool,
+    pub animation: Option<Animation>,
 }
 
 #[derive(Debug, Copy, Clone)]
