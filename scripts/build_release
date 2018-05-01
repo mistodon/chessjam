@@ -92,6 +92,11 @@ if [[ "$platform" == "macOS" ]]; then
         <key>CFBundleShortVersionString</key><string>$version</string>
         <key>NSHighResolutionCapable</key><true/>
         <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
+        <key>LSEnvironment</key>
+            <dict>
+                <key>MinimumSystemVersion</key>
+                <string>10.3.9</string>
+            </dict>
 </dict>
 </plist>"
 
@@ -105,7 +110,13 @@ if [[ "$platform" == "macOS" ]]; then
 
     say "${blue}app${white}: $app_dir"
     cp ./target/release/$crate $exe_dir/$name
+    cp ./lib/* $exe_dir
     chmod +x $exe_dir/$name
+
+    # Kind of an ugly hack that only works for this project
+    cd $exe_dir
+    install_name_tool -change /usr/local/opt/freetype/lib/libfreetype.6.dylib @executable_path/libfreetype.6.dylib $name
+    cd -
 
     say
     say "${blue}Generating playlist${white}:"
