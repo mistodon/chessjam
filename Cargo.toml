@@ -1,6 +1,6 @@
 [package]
 name = "chessjam"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Claire Harris <claire.harris.000@gmail.com>"]
 
 [profile.release]
