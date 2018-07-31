@@ -1,14 +1,17 @@
 extern crate config_struct;
 
 fn main() {
+    use config_struct::{Options, FloatSize, IntSize};
+
     println!("cargo:rerun-if-changed=src");
 
-    let toml_config = config_struct::toml_parsing::parse_config_from_file(
+    config_struct::create_config(
         "assets/config.toml",
-    ).unwrap();
-    config_struct::write_config_module(
         "src/gen_config.rs",
-        &toml_config,
-        &Default::default(),
-    ).unwrap();
+        &Options {
+            default_float_size: FloatSize::F32,
+            default_int_size: IntSize::I32,
+            max_array_size: 4,
+            ..Default::default()
+        }).unwrap();
 }

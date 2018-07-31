@@ -296,58 +296,36 @@ fn run_game(
     let mut camera_angle = config.camera.angle as f32;
     let mut camera_tilt = config.camera.tilt as f32;
 
-    let shadow_direction = Vec4::from_slice(&config.light.key_dir)
-        .norm()
-        .as_f32();
+    let shadow_direction = Vec4(config.light.key_dir).norm();
 
     let light_direction_matrix: Mat4<f32> = {
         let key = shadow_direction;
-        let fill = Vec4::from_slice(&config.light.fill_dir)
-            .norm()
-            .as_f32();
-        let back = Vec4::from_slice(&config.light.back_dir)
-            .norm()
-            .as_f32();
+        let fill = Vec4(config.light.fill_dir).norm();
+        let back = Vec4(config.light.back_dir).norm();
 
         Mat4([key.0, fill.0, back.0, [0.0, 0.0, 0.0, 1.0]]).transpose()
     };
 
     let light_color_matrix: Mat4<f32> = Mat4([
-        Vec4::from_slice(&config.light.key_color)
-            .as_f32()
-            .0,
-        Vec4::from_slice(&config.light.fill_color)
-            .as_f32()
-            .0,
-        Vec4::from_slice(&config.light.back_color)
-            .as_f32()
-            .0,
-        Vec4::from_slice(&config.light.amb_color)
-            .as_f32()
-            .0,
+        config.light.key_color,
+        config.light.fill_color,
+        config.light.back_color,
+        config.light.amb_color,
     ]);
 
     let shadow_color_matrix: Mat4<f32> = Mat4([
-        Vec4::from_slice(&config.shadow.key_color)
-            .as_f32()
-            .0,
-        Vec4::from_slice(&config.shadow.fill_color)
-            .as_f32()
-            .0,
-        Vec4::from_slice(&config.shadow.back_color)
-            .as_f32()
-            .0,
-        Vec4::from_slice(&config.shadow.amb_color)
-            .as_f32()
-            .0,
+        config.shadow.key_color,
+        config.shadow.fill_color,
+        config.shadow.back_color,
+        config.shadow.amb_color,
     ]);
 
-    let sell_tile = Vec2::from_slice(&config.game.sell_tile).as_i32();
+    let sell_tile = Vec2(config.game.sell_tile).as_i32();
     let buy_tiles = config
         .game
         .buy_tiles
         .iter()
-        .map(|slice| Vec2::from_slice(slice).as_i32())
+        .map(|&slice| Vec2(slice))
         .collect::<Vec<Vec2<i32>>>();
 
     let mut pieces = {
@@ -554,7 +532,7 @@ fn run_game(
         // TODO(***realname***): Why are these two matrices not interchangeable?
         let text_projection = Mat4::scale(
             vec4(2.0 / vx, 2.0 / vy, 1.0, 1.0)
-                / Vec4::from_slice(&config.text.viewport).as_f32(),
+                / Vec4(config.text.viewport),
         );
 
         let ui_projection = matrix::ortho_projection(TARGET_ASPECT, 4.5, -1.0, 1.0);
@@ -963,7 +941,7 @@ fn run_game(
             };
 
             let specular_color =
-                Vec3::from_slice(&config.light.specular_color).as_f32();
+                Vec3(config.light.specular_color);
 
             let saturation: f32 = match game_outcome {
                 GameOutcome::Ongoing => 1.0,
@@ -978,8 +956,8 @@ fn run_game(
                 for x in 0..8 {
                     let position = vec3(-3.5, 0.0, -3.5) + vec3(x, 0, y).as_f32();
                     //                     let color = match (x + y) % 2 {
-                    //                         0 => Vec4::from_slice(&config.colors.black).as_f32(),
-                    //                         _ => Vec4::from_slice(&config.colors.white).as_f32(),
+                    //                         0 => Vec4(config.colors.black),
+                    //                         _ => Vec4(config.colors.white),
                     //                     };
                     let texture = match (x + y) % 2 {
                         0 => &black_marble_texture,
@@ -1091,7 +1069,7 @@ fn run_game(
                 if let Some(piece_for_sale) = piece_for_sale {
                     let position = chessjam::grid_to_world(tile);
                     let mesh = mesh_for_piece(piece_for_sale.piece_type);
-                    let color = Vec4::from_slice(&config.colors.forsale).as_f32();
+                    let color = Vec4(config.colors.forsale);
                     let mvp_matrix =
                         view_projection_matrix * Mat4::translation(position);
                     lit_render_buffer.push(RenderCommand {
@@ -1132,7 +1110,7 @@ fn run_game(
                 let position = chessjam::grid_to_world(position) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
-                    color: Vec4::from_slice(&config.colors.selected).as_f32(),
+                    color: Vec4(config.colors.selected),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
@@ -1144,7 +1122,7 @@ fn run_game(
             let position = chessjam::grid_to_world(tile_cursor) + height_offset;
             highlight_render_buffer.push(RenderCommand {
                 mesh: &cube_mesh,
-                color: Vec4::from_slice(&config.colors.cursor).as_f32(),
+                color: Vec4(config.colors.cursor),
                 mvp_matrix: view_projection_matrix * Mat4::translation(position),
                 colormap: &white_texture,
                 texture_scale: vec3(1.0, 1.0, 1.0),
@@ -1155,7 +1133,7 @@ fn run_game(
                 let position = chessjam::grid_to_world(dest) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
-                    color: Vec4::from_slice(&config.colors.dest).as_f32(),
+                    color: Vec4(config.colors.dest),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
@@ -1168,7 +1146,7 @@ fn run_game(
                 let position = chessjam::grid_to_world(sell_tile) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
-                    color: Vec4::from_slice(&config.colors.dest).as_f32(),
+                    color: Vec4(config.colors.dest),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,
@@ -1181,7 +1159,7 @@ fn run_game(
                 let position = chessjam::grid_to_world(place) + height_offset;
                 highlight_render_buffer.push(RenderCommand {
                     mesh: &cube_mesh,
-                    color: Vec4::from_slice(&config.colors.place).as_f32(),
+                    color: Vec4(config.colors.place),
                     mvp_matrix: view_projection_matrix
                         * Mat4::translation(position),
                     colormap: &white_texture,

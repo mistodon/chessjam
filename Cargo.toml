@@ -29,5 +29,5 @@ git = "https://github.com/mistodon/glium_text"
 branch = "chessjam"
 
 [build-dependencies.config_struct]
-version = "=0.1.0"
+path = "../config_struct/config_struct"
 features = ["toml-parsing"]
