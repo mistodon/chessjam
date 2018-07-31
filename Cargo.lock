@@ -158,7 +158,7 @@ name = "chessjam"
 version = "0.1.1"
 dependencies = [
  "adequate_math 0.1.0 (git+https://github.com/mistodon/adequate_math)",
- "config_struct 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "config_struct 0.2.0",
  "glium 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "glium_text 0.11.0 (git+https://github.com/mistodon/glium_text?branch=chessjam)",
  "image 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -231,8 +231,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "config_struct"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
+version = "0.2.0"
 dependencies = [
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1345,7 +1344,6 @@ dependencies = [
 "checksum claxon 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "84d1237389598ada39533a0015b2d04a9e21cae771c1ab9327fb87520c9e84c7"
 "checksum cocoa 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b0c23085dde1ef4429df6e5896b89356d35cdd321fb43afe3e378d010bb5adc6"
 "checksum color_quant 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a475fc4af42d83d28adf72968d9bcfaf035a1a9381642d8e85d8a04957767b0d"
-"checksum config_struct 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "57f4c4e9ca01bc1c544987ba7ad5dad76107a8e2240265e040082355a9b452a7"
 "checksum core-foundation 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "286e0b41c3a20da26536c6000a280585d519fd07b3956b43aed8a79e9edce980"
 "checksum core-foundation-sys 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "716c271e8613ace48344f723b60b900a93150271e5be206212d052bbc0883efa"
 "checksum core-graphics 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fb0ed45fdc32f9ab426238fba9407dfead7bacd7900c9b4dd3f396f46eafdae3"
