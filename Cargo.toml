@@ -14,15 +14,15 @@ image = "=0.18.0"
 pleco = "=0.4.1"
 pleco_engine = "=0.1.2"
 rand = "~0.4.2"
+resource = "=0.2.0"
 rodio = "=0.7.0"
 serde = "~1.0.37"
 serde_derive = "~1.0.37"
-static_assets = "=0.1.0"
 toml = "~0.4.6"
 wavefront_obj = "=5.1.0"
 
-[dependencies.adequate_math]
-git = "https://github.com/mistodon/adequate_math"
+[dependencies.okmath]
+git = "https://github.com/mistodon/okmath"
 
 [dependencies.glium_text]
 git = "https://github.com/mistodon/glium_text"

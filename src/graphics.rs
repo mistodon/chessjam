@@ -1,6 +1,6 @@
 use glium::{texture::SrgbTexture2d, Display, IndexBuffer, Program, VertexBuffer};
 
-use adequate_math::*;
+use okmath::*;
 
 
 #[derive(Debug, Default, Copy, Clone, PartialEq)]

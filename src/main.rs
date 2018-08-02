@@ -3,11 +3,11 @@
 extern crate chessjam;
 
 #[macro_use]
-extern crate static_assets;
+extern crate resource;
 #[macro_use]
 extern crate glium;
 
-extern crate adequate_math;
+extern crate okmath;
 extern crate glium_text;
 extern crate pleco;
 extern crate pleco_engine;
@@ -24,7 +24,7 @@ mod ui;
 
 use std::time::Instant;
 
-use adequate_math::*;
+use okmath::*;
 use glium::{glutin::EventsLoop, Display};
 use rodio::Device;
 
@@ -130,148 +130,76 @@ fn run_game(
 
     let config = chessjam::config::load_config();
 
-    let model_shader = graphics::create_shader(
-        display,
-        asset_str!("assets/shaders/model.glsl").as_ref(),
-    );
+    let [model_shader, shadow_shader, ui_shader, skyball_shader] = resource_str!([
+        "assets/shaders/model.glsl",
+        "assets/shaders/shadow.glsl",
+        "assets/shaders/ui.glsl",
+        "assets/shaders/skyball.glsl",
+        ], |glsl: &str| graphics::create_shader(display, glsl));
 
-    let shadow_shader = graphics::create_shader(
-        display,
-        asset_str!("assets/shaders/shadow.glsl").as_ref(),
-    );
+    let [
+        cube_mesh,
+        pawn_mesh,
+        king_mesh,
+        queen_mesh,
+        bishop_mesh,
+        rook_mesh,
+        knight_mesh,
+        table_mesh,
+        skyball_mesh,
+        quad_mesh,
+        coin_mesh,
+    ] = resource_str!([
+        "assets/meshes/tile.obj",
+        "assets/meshes/pawn.obj",
+        "assets/meshes/king.obj",
+        "assets/meshes/queen.obj",
+        "assets/meshes/bishop.obj",
+        "assets/meshes/rook.obj",
+        "assets/meshes/knight.obj",
+        "assets/meshes/table.obj",
+        "assets/meshes/skyball.obj",
+        "assets/meshes/quad.obj",
+        "assets/meshes/coin.obj",
+    ], |obj: &str| graphics::create_obj_mesh(display, obj));
 
-    let ui_shader = graphics::create_shader(
-        display,
-        asset_str!("assets/shaders/ui.glsl").as_ref(),
-    );
-
-    let skyball_shader = graphics::create_shader(
-        display,
-        asset_str!("assets/shaders/skyball.glsl").as_ref(),
-    );
-
-    let cube_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/tile.obj").as_ref(),
-    );
-
-    let pawn_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/pawn.obj").as_ref(),
-    );
-
-    let king_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/king.obj").as_ref(),
-    );
-
-    let queen_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/queen.obj").as_ref(),
-    );
-
-    let bishop_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/bishop.obj").as_ref(),
-    );
-
-    let rook_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/rook.obj").as_ref(),
-    );
-
-    let knight_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/knight.obj").as_ref(),
-    );
-
-    let table_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/table.obj").as_ref(),
-    );
-
-    let skyball_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/skyball.obj").as_ref(),
-    );
-
-    let quad_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/quad.obj").as_ref(),
-    );
-
-    let coin_mesh = graphics::create_obj_mesh(
-        display,
-        asset_str!("assets/meshes/coin.obj").as_ref(),
-    );
-
-    let white_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/white.png").as_ref(),
-    );
-
-    let checker_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/checker.png").as_ref(),
-    );
-
-    let wood_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/wood.png").as_ref(),
-    );
-
-    let black_marble_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/marble_black.png").as_ref(),
-    );
-
-    let white_marble_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/marble_white.png").as_ref(),
-    );
-
-    let plastic_marble_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/marble_plastic.png").as_ref(),
-    );
-
-    let skyball_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/skyball.png").as_ref(),
-    );
-
-    let ui_frame_texture = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/ui_frame.png").as_ref(),
-    );
-
-    let ui_white_tile = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/ui_tile_white.png").as_ref(),
-    );
-
-    let ui_black_tile = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/ui_tile_black.png").as_ref(),
-    );
-
-    let coin_icon = graphics::create_texture(
-        display,
-        asset_bytes!("assets/textures/coin_icon.png").as_ref(),
-    );
-
+    let [
+        white_texture,
+        checker_texture,
+        wood_texture,
+        black_marble_texture,
+        white_marble_texture,
+        plastic_marble_texture,
+        skyball_texture,
+        ui_frame_texture,
+        ui_white_tile,
+        ui_black_tile,
+        coin_icon,
+    ] = resource!([
+        "assets/textures/white.png",
+        "assets/textures/checker.png",
+        "assets/textures/wood.png",
+        "assets/textures/marble_black.png",
+        "assets/textures/marble_white.png",
+        "assets/textures/marble_plastic.png",
+        "assets/textures/skyball.png",
+        "assets/textures/ui_frame.png",
+        "assets/textures/ui_tile_white.png",
+        "assets/textures/ui_tile_black.png",
+        "assets/textures/coin_icon.png",
+    ], |png: &[u8]| graphics::create_texture(display, png));
 
     // Start playing music
     let mut music = audio::play_music(
         speaker,
-        &asset_bytes!("assets/music/the_line.ogg"),
+        &resource!("assets/music/the_line.ogg"),
     );
 
-    let tap_sound = asset_bytes!("assets/audio/tap.ogg");
-    let coin_sound = asset_bytes!("assets/audio/coins.ogg");
+    let tap_sound = resource!("assets/audio/tap.ogg");
+    let coin_sound = resource!("assets/audio/coins.ogg");
 
     let text_system = TextSystem::new(display);
-    let font = Cursor::new(asset_bytes!("assets/fonts/bombardier.ttf"));
+    let font = Cursor::new(resource!("assets/fonts/bombardier.ttf"));
     let font_texture =
         FontTexture::new(display, font, config.text.size as u32).unwrap();
 
@@ -499,10 +427,10 @@ fn run_game(
 
         let view_matrix = {
             let angles = vec3(camera_tilt, camera_angle, 0.0).map(f32::to_radians);
-            let orientation = matrix::euler_rotation(angles);
+            let orientation = matrix::euler_rotation(angles.0);
             camera_direction = (orientation * vec4(0.0, 0.0, 1.0, 0.0)).retract();
             camera_position = -camera_direction * config.camera.distance as f32;
-            let translation = Mat4::translation(-camera_position);
+            let translation = Mat4::translation((-camera_position).0);
             orientation.transpose() * translation
         };
 
@@ -531,8 +459,8 @@ fn run_game(
 
         // TODO(***realname***): Why are these two matrices not interchangeable?
         let text_projection = Mat4::scale(
-            vec4(2.0 / vx, 2.0 / vy, 1.0, 1.0)
-                / Vec4(config.text.viewport),
+            (vec4(2.0 / vx, 2.0 / vy, 1.0, 1.0)
+                / Vec4(config.text.viewport)).0,
         );
 
         let ui_projection = matrix::ortho_projection(TARGET_ASPECT, 4.5, -1.0, 1.0);
@@ -964,7 +892,7 @@ fn run_game(
                         _ => &white_marble_texture,
                     };
                     let mvp_matrix =
-                        view_projection_matrix * Mat4::translation(position);
+                        view_projection_matrix * Mat4::translation(position.0);
                     lit_render_buffer.push(RenderCommand {
                         mesh: &cube_mesh,
                         color: vec4(0.9, 0.9, 0.9, 1.0),
@@ -981,7 +909,7 @@ fn run_game(
             lit_render_buffer.push(RenderCommand {
                 mesh: &cube_mesh,
                 color: vec4(0.5, 1.0, 0.5, 1.0),
-                mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                mvp_matrix: view_projection_matrix * Mat4::translation(position.0),
                 colormap: &white_texture,
                 texture_scale: vec3(1.0, 1.0, 1.0),
                 texture_offset: vec3(0.0, 0.0, 0.0),
@@ -994,7 +922,7 @@ fn run_game(
                     mesh: &cube_mesh,
                     color: vec4(0.5, 0.5, 0.25, 1.0),
                     mvp_matrix: view_projection_matrix
-                        * Mat4::translation(position),
+                        * Mat4::translation(position.0),
                     colormap: &white_texture,
                     texture_scale: vec3(1.0, 1.0, 1.0),
                     texture_offset: vec3(0.0, 0.0, 0.0),
@@ -1056,7 +984,7 @@ fn run_game(
                     mesh,
                     color: vec4(1.0, 1.0, 1.0, 1.0),
                     mvp_matrix: view_projection_matrix
-                        * Mat4::translation(position),
+                        * Mat4::translation(position.0),
                     colormap: texture,
                     texture_scale,
                     texture_offset: vec3(0.5, 0.0, 0.5),
@@ -1071,7 +999,7 @@ fn run_game(
                     let mesh = mesh_for_piece(piece_for_sale.piece_type);
                     let color = Vec4(config.colors.forsale);
                     let mvp_matrix =
-                        view_projection_matrix * Mat4::translation(position);
+                        view_projection_matrix * Mat4::translation(position.0);
                     lit_render_buffer.push(RenderCommand {
                         mesh,
                         color,
@@ -1087,7 +1015,7 @@ fn run_game(
                 mesh: &table_mesh,
                 color: vec4(1.0, 1.0, 1.0, 1.0),
                 mvp_matrix: view_projection_matrix
-                    * Mat4::translation(vec3(0.0, -0.2, 0.0)),
+                    * Mat4::translation([0.0, -0.2, 0.0]),
                 colormap: &wood_texture,
                 texture_scale: vec3(1.0 / 32.0, 1.0, 1.0 / 16.0),
                 texture_offset: vec3(0.5, 0.0, 0.5),
@@ -1112,7 +1040,7 @@ fn run_game(
                     mesh: &cube_mesh,
                     color: Vec4(config.colors.selected),
                     mvp_matrix: view_projection_matrix
-                        * Mat4::translation(position),
+                        * Mat4::translation(position.0),
                     colormap: &white_texture,
                     texture_scale: vec3(1.0, 1.0, 1.0),
                     texture_offset: vec3(0.0, 0.0, 0.0),
@@ -1123,7 +1051,7 @@ fn run_game(
             highlight_render_buffer.push(RenderCommand {
                 mesh: &cube_mesh,
                 color: Vec4(config.colors.cursor),
-                mvp_matrix: view_projection_matrix * Mat4::translation(position),
+                mvp_matrix: view_projection_matrix * Mat4::translation(position.0),
                 colormap: &white_texture,
                 texture_scale: vec3(1.0, 1.0, 1.0),
                 texture_offset: vec3(0.0, 0.0, 0.0),
@@ -1135,7 +1063,7 @@ fn run_game(
                     mesh: &cube_mesh,
                     color: Vec4(config.colors.dest),
                     mvp_matrix: view_projection_matrix
-                        * Mat4::translation(position),
+                        * Mat4::translation(position.0),
                     colormap: &white_texture,
                     texture_scale: vec3(1.0, 1.0, 1.0),
                     texture_offset: vec3(0.0, 0.0, 0.0),
@@ -1148,7 +1076,7 @@ fn run_game(
                     mesh: &cube_mesh,
                     color: Vec4(config.colors.dest),
                     mvp_matrix: view_projection_matrix
-                        * Mat4::translation(position),
+                        * Mat4::translation(position.0),
                     colormap: &white_texture,
                     texture_scale: vec3(1.0, 1.0, 1.0),
                     texture_offset: vec3(0.0, 0.0, 0.0),
@@ -1161,7 +1089,7 @@ fn run_game(
                     mesh: &cube_mesh,
                     color: Vec4(config.colors.place),
                     mvp_matrix: view_projection_matrix
-                        * Mat4::translation(position),
+                        * Mat4::translation(position.0),
                     colormap: &white_texture,
                     texture_scale: vec3(1.0, 1.0, 1.0),
                     texture_offset: vec3(0.0, 0.0, 0.0),
@@ -1186,7 +1114,7 @@ fn run_game(
             };
 
             let skyball_transform =
-                view_projection_matrix * Mat4::scale(vec4(40.0, 40.0, 40.0, 1.0));
+                view_projection_matrix * Mat4::scale([40.0, 40.0, 40.0, 1.0]);
 
             frame
                 .draw(
@@ -1449,7 +1377,7 @@ fn run_game(
             };
 
             let world_text_projection =
-                Mat4::scale(vec4(1.0 / vx, 1.0 / vy, 1.0, 1.0));
+                Mat4::scale([1.0 / vx, 1.0 / vy, 1.0, 1.0]);
 
             if game_outcome == GameOutcome::Ongoing {
                 for &(ref label, pos, scale) in price_tag_renderer.labels() {
@@ -1457,25 +1385,25 @@ fn run_game(
                     let screen_pos = (screen_pos / screen_pos.0[3]).retract();
                     let shadow_pos = screen_pos + vec3(0.0, -0.008, 0.0);
 
-                    let icon_scale = Mat4::scale(vec4(
+                    let icon_scale = Mat4::scale([
                         1.2 * scale / TARGET_ASPECT,
                         1.2 * scale,
                         1.0,
                         1.0,
-                    ));
+                    ]);
                     let scale =
-                        Mat4::scale(vec4(scale / TARGET_ASPECT, scale, 1.0, 1.0));
+                        Mat4::scale([scale / TARGET_ASPECT, scale, 1.0, 1.0]);
                     let label_transform = world_text_projection
-                        * Mat4::translation(screen_pos)
+                        * Mat4::translation(screen_pos.0)
                         * scale;
                     let shadow_transform = world_text_projection
-                        * Mat4::translation(shadow_pos)
+                        * Mat4::translation(shadow_pos.0)
                         * scale;
                     let icon_transform = world_text_projection
-                        * Mat4::translation(screen_pos + vec3(-0.02, 0.02, 0.0))
+                        * Mat4::translation((screen_pos + vec3(-0.02, 0.02, 0.0)).0)
                         * icon_scale;
                     let shadow_icon_transform = world_text_projection
-                        * Mat4::translation(shadow_pos + vec3(-0.02, 0.02, 0.0))
+                        * Mat4::translation((shadow_pos + vec3(-0.02, 0.02, 0.0)).0)
                         * icon_scale;
 
                     let color = vec4(0.5, 1.0, 0.5, 1.0_f32);
@@ -1593,9 +1521,9 @@ fn run_game(
             };
 
             for command in &ui_render_commands {
-                let transform = ui_projection * Mat4::translation(command.pos)
-                    * matrix::euler_rotation(vec3(0.0, 0.0, command.angle))
-                    * Mat4::scale(vec4(command.scale, command.scale, 1.0, 1.0));
+                let transform = ui_projection * Mat4::translation(command.pos.0)
+                    * matrix::euler_rotation([0.0, 0.0, command.angle])
+                    * Mat4::scale([command.scale, command.scale, 1.0, 1.0]);
 
                 frame
                     .draw(
@@ -1618,11 +1546,11 @@ fn run_game(
                 for &coin_pos in coin_positions {
                     let coin_scale = 0.6;
 
-                    let transform = ui_projection * Mat4::translation(coin_pos)
-                        * matrix::euler_rotation(vec3(0.0, -2.0 * elapsed, 0.0))
-                        * Mat4::scale(vec4(
+                    let transform = ui_projection * Mat4::translation(coin_pos.0)
+                        * matrix::euler_rotation([0.0, -2.0 * elapsed, 0.0])
+                        * Mat4::scale([
                             coin_scale, coin_scale, coin_scale, 1.0,
-                        ));
+                        ]);
 
                     frame
                         .draw(
@@ -1735,9 +1663,9 @@ fn run_game(
             }
 
             for &(ref label, pos, scale) in label_renderer.labels() {
-                let scale = Mat4::scale(vec4(scale, scale, 1.0, 1.0));
+                let scale = Mat4::scale([scale, scale, 1.0, 1.0]);
                 let label_transform =
-                    text_projection * Mat4::translation(pos) * scale;
+                    text_projection * Mat4::translation(pos.0) * scale;
                 glium_text::draw(
                     &label,
                     &text_system,

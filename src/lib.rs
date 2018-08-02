@@ -6,7 +6,7 @@ extern crate serde_derive;
 #[cfg(debug_assertions)]
 extern crate toml;
 
-extern crate adequate_math;
+extern crate okmath;
 extern crate image;
 
 pub mod config;
@@ -14,7 +14,7 @@ mod gen_config;
 
 use std::time::Instant;
 
-use adequate_math::*;
+use okmath::*;
 
 
 pub fn delta_time(previous_time: Instant) -> (f32, Instant) {
