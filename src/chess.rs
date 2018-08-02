@@ -1,4 +1,4 @@
-use adequate_math::*;
+use okmath::*;
 use pleco::{BitMove, Board};
 
 use data::*;

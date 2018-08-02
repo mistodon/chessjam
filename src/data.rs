@@ -1,4 +1,4 @@
-use adequate_math::*;
+use okmath::*;
 use glium::texture::SrgbTexture2d;
 use graphics::Mesh;
 

@@ -1,4 +1,4 @@
-use adequate_math::*;
+use okmath::*;
 use glium_text::{FontTexture, TextDisplay, TextSystem};
 
 
