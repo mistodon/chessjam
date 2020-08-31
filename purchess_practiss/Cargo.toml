@@ -1,0 +1,8 @@
+[package]
+name = "purchess_practiss"
+version = "0.1.0"
+authors = ["Claire Harris <claire.harris.000@gmail.com>"]
+
+[dependencies]
+pleco = "=0.3.11"
+pleco_engine = "=0.1.0"

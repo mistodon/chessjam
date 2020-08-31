@@ -1,0 +1,480 @@
+diff --git a/assets/shaders/model.glsl b/assets/shaders/model.glsl
+new file mode 100644
+index 0000000..db95e0a
+--- /dev/null
++++ b/assets/shaders/model.glsl
+@@ -0,0 +1,20 @@
++#version 330
++
++in vec3 offset;
++
++void main()
++{
++    gl_Position = vec4(offset, 1.0);
++}
++
++---
++
++#version 330
++
++out vec4 color;
++
++void main()
++{
++    color = vec4(0.4, 0.4, 0.8, 1.0);
++}
++
+diff --git a/rustfmt.toml b/rustfmt.toml
+index 7958cb8..6675898 100644
+--- a/rustfmt.toml
++++ b/rustfmt.toml
+@@ -2,5 +2,5 @@ unstable_features = true
+ blank_lines_upper_bound = 2
+ control_brace_style = "ClosingNextLine"
+ imports_indent = "Block"
+-max_width = 95
++max_width = 84
+ reorder_imports_in_group = true
+diff --git a/scripts/tidy.sh b/scripts/tidy.sh
+new file mode 100755
+index 0000000..27acc97
+--- /dev/null
++++ b/scripts/tidy.sh
+@@ -0,0 +1,17 @@
++#!/bin/bash
++
++set -e
++
++function dothing {
++    echo -e "\033[1;36m$@\033[0m ... "
++    $@
++    echo -e "\033[1;36m$@\033[0m done."
++}
++
++export RUSTFLAGS="-D warnings"
++
++dothing cargo check --release
++dothing cargo build
++dothing cargo test
++dothing cargo +nightly fmt --all -- --write-mode=diff
++dothing cargo +nightly clippy -- -D clippy
+diff --git a/src/graphics.rs b/src/graphics.rs
+new file mode 100644
+index 0000000..d7e8271
+--- /dev/null
++++ b/src/graphics.rs
+@@ -0,0 +1,228 @@
++#![allow(dead_code)] // TODO(claire): Remove
++
++use glium::index::PrimitiveType;
++use glium::{Display, IndexBuffer, Program, VertexBuffer};
++
++use adequate_math::*;
++
++
++#[derive(Debug, Default, Copy, Clone, PartialEq)]
++pub struct Vertex {
++    offset: [f32; 3],
++    normal: [f32; 3],
++}
++implement_vertex!(Vertex, offset);
++
++
++pub struct Mesh {
++    pub vertices: VertexBuffer<Vertex>,
++    pub indices: IndexBuffer<u16>,
++    pub shadow_indices: IndexBuffer<u16>,
++}
++
++
++pub fn create_shader(display: &Display, shader_source: &str) -> Program {
++    use glium::program::ProgramCreationInput;
++
++    let mut splits = shader_source.split("---");
++    let vertex_source = splits.next().unwrap();
++    let fragment_source = splits.next().unwrap();
++
++    Program::new(
++        display,
++        ProgramCreationInput::SourceCode {
++            vertex_shader: vertex_source,
++            fragment_shader: fragment_source,
++            outputs_srgb: true,
++            geometry_shader: None,
++            tessellation_control_shader: None,
++            tessellation_evaluation_shader: None,
++            transform_feedback_varyings: None,
++            uses_point_size: false,
++        },
++    ).unwrap()
++}
++
++
++pub fn create_cube_mesh(display: &Display, scale: Vec3<f32>) -> Mesh {
++    let offsets = [
++        vec3(-0.5, 0.5, -0.5) * scale,
++        vec3(-0.5, -0.5, -0.5) * scale,
++        vec3(0.5, 0.5, -0.5) * scale,
++        vec3(0.5, -0.5, -0.5) * scale,
++        vec3(-0.5, 0.5, 0.5) * scale,
++        vec3(-0.5, -0.5, 0.5) * scale,
++        vec3(0.5, 0.5, 0.5) * scale,
++        vec3(0.5, -0.5, 0.5) * scale,
++    ];
++
++    let indices = [
++        0, 1, 2, 1, 3, 2, 6, 7, 4, 7, 5, 4, 4, 0, 6, 6, 0, 2, 4, 5, 0, 5, 1, 0, 2,
++        3, 6, 3, 7, 6, 1, 5, 3, 5, 7, 3,
++    ];
++
++    create_mesh(display, &offsets, &indices)
++}
++
++
++fn create_mesh(
++    display: &Display,
++    offsets: &[Vec3<f32>],
++    indices: &[usize],
++) -> Mesh {
++    let face_normals = generate_face_normals(offsets, indices);
++
++    let (vertices, flat_indices, shadow_indices) =
++        generate_flat_mesh(offsets, indices, &face_normals);
++
++    let vertex_buffer = VertexBuffer::new(display, &vertices).unwrap();
++    let index_buffer = IndexBuffer::new(
++        display,
++        PrimitiveType::TrianglesList,
++        &flat_indices,
++    ).unwrap();
++    let shadow_index_buffer = IndexBuffer::new(
++        display,
++        PrimitiveType::TrianglesList,
++        &shadow_indices,
++    ).unwrap();
++
++
++    Mesh {
++        vertices: vertex_buffer,
++        indices: index_buffer,
++        shadow_indices: shadow_index_buffer,
++    }
++}
++
++
++fn create_mesh_smooth(
++    display: &Display,
++    offsets: &[Vec3<f32>],
++    indices: &[usize],
++) -> Mesh {
++    let face_normals = generate_face_normals(offsets, indices);
++    let vertex_normals = generate_vertex_normals(offsets, indices, &face_normals);
++
++    let mut vertices = Vec::with_capacity(offsets.len());
++    for (offset, normal) in offsets.iter().zip(vertex_normals.iter()) {
++        vertices.push(Vertex {
++            offset: offset.0,
++            normal: normal.0,
++        });
++    }
++
++    let (mut flat_vertices, _flat_indices, shadow_indices) =
++        generate_flat_mesh(offsets, indices, &face_normals);
++
++    let smooth_indices: Vec<u16> = indices.iter().map(|&x| x as u16).collect();
++    let smooth_count = offsets.len() as u16;
++
++    vertices.append(&mut flat_vertices);
++    let shadow_indices: Vec<u16> = shadow_indices
++        .iter()
++        .map(|&x| x + smooth_count)
++        .collect();
++
++    let vertex_buffer = VertexBuffer::new(display, &vertices).unwrap();
++    let index_buffer = IndexBuffer::new(
++        display,
++        PrimitiveType::TrianglesList,
++        &smooth_indices,
++    ).unwrap();
++    let shadow_index_buffer = IndexBuffer::new(
++        display,
++        PrimitiveType::TrianglesList,
++        &shadow_indices,
++    ).unwrap();
++
++
++    Mesh {
++        vertices: vertex_buffer,
++        indices: index_buffer,
++        shadow_indices: shadow_index_buffer,
++    }
++}
++
++
++fn generate_face_normals(
++    offsets: &[Vec3<f32>],
++    indices: &[usize],
++) -> Vec<Vec3<f32>> {
++    let mut face_normals = Vec::with_capacity(indices.len() / 3);
++    for triangle in indices.chunks(3) {
++        let i0 = triangle[0];
++        let i1 = triangle[1];
++        let i2 = triangle[2];
++        let u: Vec3<f32> = offsets[i1] - offsets[i0];
++        let v: Vec3<f32> = offsets[i2] - offsets[i0];
++        let n = v.cross(u).norm();
++        face_normals.push(n);
++    }
++    face_normals
++}
++
++
++fn generate_vertex_normals(
++    offsets: &[Vec3<f32>],
++    indices: &[usize],
++    face_normals: &[Vec3<f32>],
++) -> Vec<Vec3<f32>> {
++    let mut vertex_normals = vec![vec3(0.0, 0.0, 0.0); offsets.len()];
++    for (triangle_index, triangle) in indices.chunks(3).enumerate() {
++        for &index in triangle {
++            vertex_normals[index] += face_normals[triangle_index];
++        }
++    }
++
++    for normal in &mut vertex_normals {
++        *normal = normal.norm();
++    }
++
++    vertex_normals
++}
++
++
++fn generate_flat_mesh(
++    offsets: &[Vec3<f32>],
++    indices: &[usize],
++    face_normals: &[Vec3<f32>],
++) -> (Vec<Vertex>, Vec<u16>, Vec<u16>) {
++    use std::collections::HashMap;
++
++    let mut edge_map = HashMap::new();
++
++    let mut vertices = Vec::with_capacity(indices.len());
++    for (triangle_index, triangle) in indices.chunks(3).enumerate() {
++        let new_index = vertices.len();
++
++        for i in 0..3 {
++            let j = (i + 1) % 3;
++            let old_edge = (triangle[i], triangle[j]);
++            let new_edge = (new_index + i, new_index + j);
++            edge_map.insert(old_edge, new_edge);
++        }
++
++        for &index in triangle {
++            vertices.push(Vertex {
++                offset: offsets[index].0,
++                normal: face_normals[triangle_index].0,
++            });
++        }
++    }
++
++    let flat_indices: Vec<u16> = (0..indices.len() as u16).collect();
++
++    let mut shadow_indices = flat_indices.clone();
++    for (old_edge, edge_a) in edge_map.iter() {
++        let &(a, b) = old_edge;
++        let edge_b = edge_map
++            .get(&(b, a))
++            .expect("Mesh isn't closed - found an open edge");
++        shadow_indices.push(edge_a.1 as u16);
++        shadow_indices.push(edge_a.0 as u16);
++        shadow_indices.push(edge_b.0 as u16);
++    }
++
++    (vertices, flat_indices, shadow_indices)
++}
+diff --git a/src/input.rs b/src/input.rs
+index fb60316..ba852f9 100644
+--- a/src/input.rs
++++ b/src/input.rs
+@@ -1,5 +1,7 @@
+-pub use glium::glutin::VirtualKeyCode as Key;
++#![allow(dead_code)] // TODO(claire): Remove
++
+ pub use glium::glutin::ModifiersState;
++pub use glium::glutin::VirtualKeyCode as Key;
+ 
+ 
+ #[derive(Clone)]
+@@ -7,61 +9,53 @@ pub struct Keyboard {
+     pub modifiers: ModifiersState,
+     keys_down: [bool; 256],
+     keys_pressed: [bool; 256],
+-    keys_released: [bool; 256]
++    keys_released: [bool; 256],
+ }
+ 
+ impl Default for Keyboard {
+     fn default() -> Self {
+-        Keyboard
+-        {
++        Keyboard {
+             modifiers: ModifiersState::default(),
+             keys_down: [false; 256],
+             keys_pressed: [false; 256],
+-            keys_released: [false; 256]
++            keys_released: [false; 256],
+         }
+     }
+ }
+ 
+-impl Keyboard
+-{
+-    pub fn begin_frame_input(&mut self) -> KeyboardInput
+-    {
++impl Keyboard {
++    pub fn begin_frame_input(&mut self) -> KeyboardInput {
+         self.keys_pressed = [false; 256];
+         self.keys_released = [false; 256];
+         KeyboardInput { keyboard: self }
+     }
+ 
+-    pub fn down(&self, key: Key) -> bool
+-    {
++    pub fn down(&self, key: Key) -> bool {
+         self.keys_down[key as usize]
+     }
+ 
+-    pub fn pressed(&self, key: Key) -> bool
+-    {
++    pub fn pressed(&self, key: Key) -> bool {
+         self.keys_pressed[key as usize]
+     }
+ 
+-    pub fn released(&self, key: Key) -> bool
+-    {
++    pub fn released(&self, key: Key) -> bool {
+         self.keys_released[key as usize]
+     }
+ }
+ 
+ 
+ pub struct KeyboardInput<'a> {
+-    keyboard: &'a mut Keyboard
++    keyboard: &'a mut Keyboard,
+ }
+ 
+ impl<'a> KeyboardInput<'a> {
+-    pub fn press(&mut self, key: Key, modifiers: ModifiersState)
+-    {
++    pub fn press(&mut self, key: Key, modifiers: ModifiersState) {
+         self.keyboard.keys_down[key as usize] = true;
+         self.keyboard.keys_pressed[key as usize] = true;
+         self.keyboard.modifiers = modifiers;
+     }
+ 
+-    pub fn release(&mut self, key: Key, modifiers: ModifiersState)
+-    {
++    pub fn release(&mut self, key: Key, modifiers: ModifiersState) {
+         self.keyboard.keys_down[key as usize] = false;
+         self.keyboard.keys_released[key as usize] = true;
+         self.keyboard.modifiers = modifiers;
+diff --git a/src/lib.rs b/src/lib.rs
+index 3d4cd33..6530e8a 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -3,7 +3,8 @@ use std::time::Instant;
+ pub fn delta_time(previous_time: Instant) -> (f32, Instant) {
+     let now = Instant::now();
+     let delta = now.duration_since(previous_time);
+-    let dt = (delta.as_secs() as f32) + (delta.subsec_nanos() as f32 / 1000000000.0);
++    let dt =
++        (delta.as_secs() as f32) + (delta.subsec_nanos() as f32 / 1000000000.0);
+     (dt, now)
+ }
+ 
+diff --git a/src/main.rs b/src/main.rs
+index 02272e1..6aec073 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,8 +1,16 @@
+ extern crate chessjam;
++
++#[macro_use]
++extern crate static_assets;
++#[macro_use]
+ extern crate glium;
+ 
++extern crate adequate_math;
++
++mod graphics;
+ mod input;
+ 
++use adequate_math::*;
+ use glium::Display;
+ use glium::glutin::EventsLoop;
+ 
+@@ -40,11 +48,18 @@ fn main() {
+ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
+     use std::time::Instant;
+ 
++    let model_shader = graphics::create_shader(
++        display,
++        asset_str!("assets/shaders/model.glsl").as_ref(),
++    );
++
++    let cube_mesh = graphics::create_cube_mesh(display, vec3(1.0, 1.0, 1.0));
++
+     let mut frame_time = Instant::now();
+     let mut keyboard = Keyboard::default();
+ 
+     loop {
+-        let (dt, now) = chessjam::delta_time(frame_time);
++        let (_dt, now) = chessjam::delta_time(frame_time);
+         frame_time = now;
+ 
+         // handle_events
+@@ -81,7 +96,10 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
+ 
+         // render
+         {
+-            use glium::{Rect, Surface};
++            use glium::{
++                BackfaceCullingMode, Depth, DepthTest, DrawParameters, Rect,
++                Surface,
++            };
+ 
+             let mut frame = display.draw();
+             frame.clear_color_srgb(0.0, 0.0, 0.0, 1.0);
+@@ -104,10 +122,31 @@ fn run_game(display: &Display, events_loop: &mut EventsLoop) -> bool {
+                 Some(&viewport),
+                 Some((0.3, 0.3, 0.3, 1.0)),
+                 true,
+-                None,
++                Some(1.0),
+                 None,
+             );
+ 
++            let draw_params = DrawParameters {
++                depth: Depth {
++                    test: DepthTest::IfLess,
++                    write: true,
++                    ..Default::default()
++                },
++                backface_culling: BackfaceCullingMode::CullClockwise,
++                viewport: Some(viewport),
++                ..Default::default()
++            };
++
++            frame
++                .draw(
++                    &cube_mesh.vertices,
++                    &cube_mesh.indices,
++                    &model_shader,
++                    &uniform!{},
++                    &draw_params,
++                )
++                .unwrap();
++
+             frame.finish().unwrap();
+         }
+     }
