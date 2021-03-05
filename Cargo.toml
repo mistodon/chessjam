@@ -1,7 +1,7 @@
 [package]
 name = "chessjam"
 version = "0.1.1"
-authors = ["***Realname*** ***Lastname*** <***realname***.***lastname***.000@gmail.com>"]
+authors = ["Vi <violet@hey.com>"]
 
 [profile.release]
 # Seems like pleco might depend on panic_unwind for some reason ...
