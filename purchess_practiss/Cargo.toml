@@ -1,7 +1,7 @@
 [package]
 name = "purchess_practiss"
 version = "0.1.0"
-authors = ["***Realname*** ***Lastname*** <***redacted.email@redacted.nope***>"]
+authors = ["***Realname*** ***Lastname*** <***realname***.***lastname***.000@gmail.com>"]
 
 [dependencies]
 pleco = "=0.3.11"
